@@ -8,6 +8,7 @@ Thumbs.db
 # Environment
 .env
 .env.local
+docker/localstack/volume
 
 # Interpreter
 __pycache__
@@ -15,3 +16,6 @@ __pycache__
 *.pyo
 *.pyd
 venv
+
+# Deployment
+cdk.out
