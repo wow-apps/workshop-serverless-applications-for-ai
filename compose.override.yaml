@@ -1,0 +1,13 @@
+services:
+  localstack:
+    environment:
+      DEBUG: ${LS_DEBUG:-0}
+      LOCALSTACK_HOST: ${LS_HOST:-localhost.localstack.cloud:4566}
+      PERSISTENCE: ${LS_PERSISTENCE:-0}
+      LS_LOG: ${LS_LOG:-info}
+      EXTERNAL_SERVICE_PORTS_START: ${LS_EXTERNAL_SERVICE_PORTS_START:-4510}
+      EXTERNAL_SERVICE_PORTS_END: ${LS_EXTERNAL_SERVICE_PORTS_END:-4560}
+      EAGER_SERVICE_LOADING: ${LS_EAGER_SERVICE_LOADING:-0}
+      SERVICES: ${LS_SERVICES:-s3,sqs,ssm,lambda,apigateway,cloudformation,iam,dynamodb,secretsmanager,sts,stepfunctions,cloudwatch,logs,sns,s3control,ses,events}
+      ALLOW_NONSTANDARD_REGIONS: ${LS_ALLOW_NONSTANDARD_REGIONS:-0}
+      PARITY_AWS_ACCESS_KEY_ID: ${LS_PARITY_AWS_ACCESS_KEY_ID:-0}
