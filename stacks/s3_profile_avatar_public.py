@@ -17,7 +17,7 @@ class ProfileAvatarPublicBucketStack(Stack):
             block_public_access=s3.BlockPublicAccess.BLOCK_ACLS,
             public_read_access=True,
             removal_policy=RemovalPolicy.RETAIN,
-            auto_delete_objects=True,
+            auto_delete_objects=False,
             website_index_document="index.html",
             website_error_document="error.html",
         )

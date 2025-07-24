@@ -75,9 +75,17 @@ jobs:
       run: |
         npm install -g aws-cdk@2.1007.0
 
+    - name: Run CDK bootstrap
+      run: |
+        poetry run cdk bootstrap
+      env:
+        CDK_ACCOUNT: ${{ vars.AWS_DEFAULT_ACCOUNT }}
+        CDK_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+        CLOUD_ENVIRONMENT: ${{ github.event.inputs.environment }}
+
     - name: Run CDK diff
       run: |
-        poetry run cdk diff
+        poetry run cdk diff --all
       env:
         CDK_ACCOUNT: ${{ vars.AWS_DEFAULT_ACCOUNT }}
         CDK_REGION: ${{ vars.AWS_DEFAULT_REGION }}
