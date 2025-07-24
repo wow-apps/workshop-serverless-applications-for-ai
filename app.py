@@ -7,6 +7,7 @@ from stacks import (
     KmsStack,
     ProfileAvatarUploadBucketStack,
     ProfileAvatarPublicBucketStack,
+    ProfileAvatarResizeAndStoreLambdaStack,
 )
 
 
@@ -38,6 +39,16 @@ s3_profile_avatar_public_stack = ProfileAvatarPublicBucketStack(
     app,
     f"{APP_STACK_PREFIX}ProfileAvatarPublicBucketStack",
     env=environment,
+)
+
+# Create the Lambda function stack for resizing and storing profile avatars
+profile_avatar_resize_and_store_stack = ProfileAvatarResizeAndStoreLambdaStack(
+    app,
+    f"{APP_STACK_PREFIX}ProfileAvatarResizeAndStoreLambdaStack",
+    env=environment,
+    upload_bucket=s3_profile_avatar_upload_stack.upload_bucket,
+    public_bucket=s3_profile_avatar_public_stack.bucket,
+    kms_key=kms_stack.kms_key,
 )
 
 

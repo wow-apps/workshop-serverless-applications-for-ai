@@ -23,3 +23,5 @@ class ProfileAvatarUploadBucketStack(Stack):
             auto_delete_objects=True,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
         )
+
+        self.upload_bucket = bucket
