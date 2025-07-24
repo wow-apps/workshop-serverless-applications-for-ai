@@ -10,6 +10,7 @@ class ProfileAvatarUploadBucketStack(Stack):
         self,
         scope: Construct,
         construct_id: str,
+        lambda_fn=None,  # Accept Lambda function as optional parameter
         **kwargs
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -25,3 +26,13 @@ class ProfileAvatarUploadBucketStack(Stack):
         )
 
         self.upload_bucket = bucket
+
+        # If Lambda function is provided, set up S3 event notification
+        if lambda_fn is not None:
+            from aws_cdk import aws_s3_notifications as s3n
+
+            notification = s3n.LambdaDestination(lambda_fn)
+            bucket.add_event_notification(
+                s3.EventType.OBJECT_CREATED,
+                notification
+            )

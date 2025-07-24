@@ -1,7 +1,5 @@
 from aws_cdk import (
     aws_lambda as _lambda,
-    aws_s3 as s3,
-    aws_s3_notifications as s3n,
     aws_iam as iam,
     Stack
 )
@@ -10,7 +8,7 @@ import aws_cdk as cdk
 
 
 class ProfileAvatarResizeAndStoreLambdaStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, upload_bucket: s3.IBucket, public_bucket: s3.IBucket, kms_key, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, kms_key, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         pillow_layer = _lambda.LayerVersion.from_layer_version_arn(
@@ -30,7 +28,7 @@ class ProfileAvatarResizeAndStoreLambdaStack(Stack):
             memory_size=128,
             layers=[pillow_layer],
             environment={
-                "PUBLIC_BUCKET": public_bucket.bucket_name,
+                # Buckets are now set by event notification, not environment
                 "KMS_KEY_ARN": kms_key.key_arn,
             },
         )
@@ -38,27 +36,5 @@ class ProfileAvatarResizeAndStoreLambdaStack(Stack):
         # Grant Lambda permissions to use KMS key
         kms_key.grant_encrypt_decrypt(lambda_fn)
 
-        # Grant S3 access to Lambda for upload bucket
-        lambda_fn.add_to_role_policy(iam.PolicyStatement(
-            actions=["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
-            resources=[
-                upload_bucket.bucket_arn,
-                f"{upload_bucket.bucket_arn}/*"
-            ]
-        ))
-
-        # Grant S3 access to Lambda for public bucket (write only)
-        lambda_fn.add_to_role_policy(iam.PolicyStatement(
-            actions=["s3:PutObject"],
-            resources=[
-                public_bucket.bucket_arn,
-                f"{public_bucket.bucket_arn}/*"
-            ]
-        ))
-
-        # Add S3 event notification to trigger Lambda on new object creation
-        notification = s3n.LambdaDestination(lambda_fn)
-        upload_bucket.add_event_notification(
-            s3.EventType.OBJECT_CREATED,
-            notification
-        )
+        self.lambda_fn = lambda_fn
+        # Removed all bucket references from Lambda stack
