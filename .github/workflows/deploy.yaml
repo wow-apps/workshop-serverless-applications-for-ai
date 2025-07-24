@@ -65,7 +65,7 @@ jobs:
     - name: Set up Node
       uses: actions/setup-node@v4
       with:
-        node-version: "22"
+        node-version: "20"
 
     - name: Install Python dependencies
       run: |
@@ -73,7 +73,7 @@ jobs:
 
     - name: Install AWS CDK
       run: |
-        npm install -g aws-cdk@2.206.0
+        npm install -g aws-cdk@2.1022.0
 
     - name: Run CDK bootstrap
       run: |
