@@ -69,7 +69,7 @@ jobs:
 
     - name: Install Python dependencies
       run: |
-        poetry install --only main
+        poetry install --only main --no-root
 
     - name: Install AWS CDK
       run: |
