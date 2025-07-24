@@ -1,0 +1,9 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"  # Poetry is supported through pip ecosystem
+    directory: "/"  # Location of pyproject.toml and poetry.lock
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"

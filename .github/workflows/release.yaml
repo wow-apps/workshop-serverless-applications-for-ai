@@ -1,0 +1,41 @@
+name: Create release
+
+on:
+  release:
+    types: [released]
+
+jobs:
+  create_release:
+    name: Create release
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Detect version
+        id: config
+        env:
+          ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+        run: |
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+
+          echo "VERSION=$(echo $VERSION)" >> $GITHUB_ENV
+          echo "VERSION=$(echo $VERSION)" >> $GITHUB_OUTPUT
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update version in pyproject.toml
+        run: |
+          VERSION=$VERSION
+          echo "Setting new version: $VERSION"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          cat pyproject.toml  # Output the changes for debugging
+
+      - name: Commit updated pyproject.toml
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: ":robot: Bump version to ${{ env.VERSION }}"
+          branch: main
+          file_pattern: "pyproject.toml"
+        env:
+          VERSION: ${{ env.VERSION }}
