@@ -6,6 +6,7 @@ from utils import config
 from stacks import (
     KmsStack,
     ProfileAvatarUploadBucketStack,
+    ProfileAvatarPublicBucketStack,
 )
 
 
@@ -29,6 +30,13 @@ kms_stack = KmsStack(
 s3_profile_avatar_upload_stack = ProfileAvatarUploadBucketStack(
     app,
     f"{APP_STACK_PREFIX}ProfileAvatarUploadBucketStack",
+    env=environment,
+)
+
+# Create the S3 bucket stack for public profile avatars
+s3_profile_avatar_public_stack = ProfileAvatarPublicBucketStack(
+    app,
+    f"{APP_STACK_PREFIX}ProfileAvatarPublicBucketStack",
     env=environment,
 )
 
