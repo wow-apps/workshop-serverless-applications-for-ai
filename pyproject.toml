@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "workshop-serverless-for-ai"
-version = "1.0.2"
+version = "1.0.3"
 description = "Workshop Serverless for AI"
 license = "MIT"
 authors = ["Oleksii Samara"]
