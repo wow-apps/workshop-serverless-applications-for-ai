@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "workshop-serverless-for-ai"
+version = "1.0.0"
+description = "Workshop Serverless for AI"
+license = "MIT"
+authors = ["Oleksii Samara"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+boto3 = "^1.39.12"
+constructs = "^10.4.2"
+pytest = "^8.4.1"
+aws-cdk-lib = "^2.206.0"
+pydantic = "^2.11.7"
+pyjwt = "^2.10.1"
+cryptography = "^45.0.5"
+requests = "^2.32.4"
+
+
+[tool.poetry.group.dev.dependencies]
+flake8 = "^7.3.0"
+autopep8 = "^2.3.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 120

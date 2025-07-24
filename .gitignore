@@ -1,0 +1,17 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+
+# Environment
+.env
+.env.local
+
+# Interpreter
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+venv
