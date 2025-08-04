@@ -5,8 +5,14 @@ from aws_cdk import (
 )
 from constructs import Construct
 
+
 class ProfileAvatarPublicBucketStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, lambda_fn=None, **kwargs) -> None:
+    def __init__(
+            self,
+            scope: Construct,
+            construct_id: str,
+            lambda_fn=None,
+            **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # Create a public S3 bucket for profile avatars

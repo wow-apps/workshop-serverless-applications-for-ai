@@ -3,6 +3,7 @@ import boto3
 from PIL import Image
 import tempfile
 
+
 def handler(event, context):
     # Get bucket and key from event
     record = event['Records'][0]
