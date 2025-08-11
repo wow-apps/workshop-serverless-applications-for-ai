@@ -8,7 +8,12 @@ import aws_cdk as cdk
 
 
 class ProfileAvatarResizeAndStoreLambdaStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, kms_key, **kwargs) -> None:
+    def __init__(
+            self,
+            scope: Construct,
+            construct_id: str,
+            kms_key,
+            **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         pillow_layer = _lambda.LayerVersion.from_layer_version_arn(
@@ -23,7 +28,8 @@ class ProfileAvatarResizeAndStoreLambdaStack(Stack):
             "ProfileAvatarResizeAndStoreLambda",
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler="__init__.handler",
-            code=_lambda.Code.from_asset("src/functions/profile_avatar_resize_and_store"),
+            code=_lambda.Code.from_asset(
+                "src/functions/profile_avatar_resize_and_store"),
             timeout=cdk.Duration.seconds(30),
             memory_size=128,
             layers=[pillow_layer],
