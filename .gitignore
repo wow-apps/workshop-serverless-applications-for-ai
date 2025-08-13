@@ -4,6 +4,7 @@ Thumbs.db
 
 # IDE
 .idea
+CLAUDE.md
 
 # Environment
 .env

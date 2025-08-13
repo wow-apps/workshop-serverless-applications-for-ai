@@ -17,6 +17,7 @@ pyjwt = "^2.10.1"
 cryptography = "^45.0.5"
 requests = "^2.32.4"
 pillow = "^11.3.0"
+python-dotenv = "^1.0.0"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -5,9 +5,7 @@ import aws_cdk as cdk
 from utils import config
 from stacks import (
     KmsStack,
-    ProfileAvatarUploadBucketStack,
-    ProfileAvatarPublicBucketStack,
-    ProfileAvatarResizeAndStoreLambdaStack,
+    InterviewBucketStack,
 )
 
 
@@ -27,28 +25,11 @@ kms_stack = KmsStack(
     env=environment,
 )
 
-# Create the Lambda function stack for resizing and storing profile avatars
-profile_avatar_resize_and_store_stack = ProfileAvatarResizeAndStoreLambdaStack(
+# S3 Interview Bucket Stack
+s3_interview_stack = InterviewBucketStack(
     app,
-    f"{APP_STACK_PREFIX}ProfileAvatarResizeAndStoreLambdaStack",
+    f"{APP_STACK_PREFIX}InterviewBucketStack",
     env=environment,
-    kms_key=kms_stack.kms_key,
-)
-
-# Create the S3 bucket stack for public profile avatars, passing the Lambda function
-s3_profile_avatar_public_stack = ProfileAvatarPublicBucketStack(
-    app,
-    f"{APP_STACK_PREFIX}ProfileAvatarPublicBucketStack",
-    env=environment,
-    lambda_fn=profile_avatar_resize_and_store_stack.lambda_fn,
-)
-
-# Create the S3 bucket stack for profile avatar uploads, passing the Lambda function
-s3_profile_avatar_upload_stack = ProfileAvatarUploadBucketStack(
-    app,
-    f"{APP_STACK_PREFIX}ProfileAvatarUploadBucketStack",
-    env=environment,
-    lambda_fn=profile_avatar_resize_and_store_stack.lambda_fn,
 )
 
 

@@ -1,0 +1,11 @@
+Senior Backend Developer (Python)
+As the Lead Backend Developer, you will play a crucial role in shaping the architecture and development of our backend systems. You will work closely with our product and design teams to implement robust, scalable, and efficient solutions that power our AI assistant. If you are a problem-solver with a strong technical background and a passion for innovation, we want to hear from you!
+
+Key Responsibilities
+- Design and implement scalable backend architectures for our mobile AI application.
+- Develop RESTful APIs and microservices that integrate with various third-party services.
+- Collaborate with frontend developers to ensure seamless integration between backend and mobile applications.
+- Optimize applications for maximum speed and scalability.
+- Lead code reviews and promote best practices in software development.
+- Troubleshoot and debug applications to ensure high availability and performance.
+- Stay up-to-date with emerging technologies and industry trends to drive continuous improvement.
