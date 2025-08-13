@@ -7,6 +7,8 @@ from stacks import (
     KmsStack,
     InterviewBucketStack,
     DynamoDbStack,
+    StepFunctionsStack,
+    LambdaStack,
 )
 
 
@@ -41,7 +43,30 @@ dynamodb_stack = DynamoDbStack(
     env=environment,
 )
 
+# Step Functions Stack for orchestration
+step_functions_stack = StepFunctionsStack(
+    app,
+    f"{APP_STACK_PREFIX}StepFunctionsStack",
+    kms_key=kms_stack.kms_key,
+    env=environment,
+)
+
+# Lambda Stack for S3 event handling
+lambda_stack = LambdaStack(
+    app,
+    f"{APP_STACK_PREFIX}LambdaStack",
+    kms_key=kms_stack.kms_key,
+    state_machine=step_functions_stack.state_machine,
+    env=environment,
+)
+
 # Add dependencies
 dynamodb_stack.add_dependency(kms_stack)
+step_functions_stack.add_dependency(kms_stack)
+step_functions_stack.add_dependency(dynamodb_stack)
+lambda_stack.add_dependency(step_functions_stack)
+
+# Add S3 event notifications after Lambda is created
+s3_interview_stack.add_event_notifications(lambda_stack.s3_ingest_handler)
 
 app.synth()

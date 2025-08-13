@@ -31,7 +31,9 @@ class DynamoDbStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
             encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
             encryption_key=kms_key,
-            point_in_time_recovery=True,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
+            ),
         )
 
         # Add GSI for querying by position_name
@@ -59,7 +61,9 @@ class DynamoDbStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
             encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
             encryption_key=kms_key,
-            point_in_time_recovery=True,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
+            ),
         )
 
         # Add GSI for querying by interview_id
