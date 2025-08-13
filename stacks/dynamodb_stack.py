@@ -48,10 +48,10 @@ class DynamoDbStack(Stack):
 
         # Interview Q&A Table
         # PK: id (uuid)
-        # Attributes: id, interview_id, question, answer
+        # Attributes: id, interview_id, index, question, answer, created_at
         self.interview_qa_table = dynamodb.Table(
             self,
-            "InterviewQATable", 
+            "InterviewQATable",
             table_name="interview_qa",
             partition_key=dynamodb.Attribute(
                 name="id",

@@ -25,7 +25,8 @@ class StepFunctionsStack(Stack):
             "InterviewPipelineStateMachineRole",
             assumed_by=iam.ServicePrincipal("states.amazonaws.com"),
             managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaRole")
+                iam.ManagedPolicy.from_aws_managed_policy_name(
+                    "service-role/AWSLambdaRole")
             ]
         )
 
@@ -55,9 +56,23 @@ class StepFunctionsStack(Stack):
             }
         )
 
+        # Lambda function for Q&A extraction using Bedrock
+        self.qa_extractor_function = _lambda.Function(
+            self,
+            "QAExtractorFunction",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            code=_lambda.Code.from_asset("src/functions/qa_extractor"),
+            handler="main.handler",
+            timeout=Duration.minutes(10),
+            environment={
+                "KMS_KEY_ID": kms_key.key_id,
+            }
+        )
+
         # Grant permissions to Lambda functions
         kms_key.grant_encrypt_decrypt(self.transcribe_processor_function)
         kms_key.grant_encrypt_decrypt(self.transcribe_status_checker_function)
+        kms_key.grant_encrypt_decrypt(self.qa_extractor_function)
 
         # Grant S3 permissions
         self.transcribe_processor_function.add_to_role_policy(
@@ -92,11 +107,13 @@ class StepFunctionsStack(Stack):
             resources=["*"]
         )
 
-        self.transcribe_processor_function.add_to_role_policy(transcribe_policy)
-        self.transcribe_status_checker_function.add_to_role_policy(transcribe_policy)
+        self.transcribe_processor_function.add_to_role_policy(
+            transcribe_policy)
+        self.transcribe_status_checker_function.add_to_role_policy(
+            transcribe_policy)
 
         # Grant DynamoDB permissions
-        dynamodb_policy = iam.PolicyStatement(
+        dynamodb_transcriptions_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
             actions=[
                 "dynamodb:PutItem",
@@ -106,8 +123,36 @@ class StepFunctionsStack(Stack):
             resources=["arn:aws:dynamodb:*:*:table/interview_transcriptions"]
         )
 
-        self.transcribe_processor_function.add_to_role_policy(dynamodb_policy)
-        self.transcribe_status_checker_function.add_to_role_policy(dynamodb_policy)
+        dynamodb_qa_policy = iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=[
+                "dynamodb:PutItem",
+                "dynamodb:GetItem",
+                "dynamodb:Query"
+            ],
+            resources=[
+                "arn:aws:dynamodb:*:*:table/interview_transcriptions",
+                "arn:aws:dynamodb:*:*:table/interview_qa"
+            ]
+        )
+
+        # Grant Bedrock permissions for Q&A extraction
+        bedrock_policy = iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=[
+                "bedrock:InvokeModel"
+            ],
+            resources=[
+                "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0"
+            ]
+        )
+
+        self.transcribe_processor_function.add_to_role_policy(
+            dynamodb_transcriptions_policy)
+        self.transcribe_status_checker_function.add_to_role_policy(
+            dynamodb_transcriptions_policy)
+        self.qa_extractor_function.add_to_role_policy(dynamodb_qa_policy)
+        self.qa_extractor_function.add_to_role_policy(bedrock_policy)
 
         # Step Functions tasks
         start_transcription_task = tasks.LambdaInvoke(
@@ -131,20 +176,29 @@ class StepFunctionsStack(Stack):
             result_path="$.status_result"
         )
 
+        # Q&A extraction task
+        qa_extraction_task = tasks.LambdaInvoke(
+            self,
+            "ExtractQAPairs",
+            lambda_function=self.qa_extractor_function,
+            input_path="$.status_result.Payload",
+            result_path="$.qa_result"
+        )
+
         # Choice state to check if transcription is complete
         transcription_complete = sfn.Choice(self, "IsTranscriptionComplete")
 
         # Success and failure states
         success_state = sfn.Succeed(
             self,
-            "TranscriptionSuccess",
-            comment="Interview transcription completed successfully"
+            "PipelineSuccess",
+            comment="Interview processing pipeline completed successfully"
         )
 
         failure_state = sfn.Fail(
             self,
-            "TranscriptionFailed",
-            comment="Interview transcription failed",
+            "PipelineFailed",
+            comment="Interview processing pipeline failed",
             cause="Transcription job failed or timed out"
         )
 
@@ -154,11 +208,13 @@ class StepFunctionsStack(Stack):
                 check_transcription_status_task.next(
                     transcription_complete
                     .when(
-                        sfn.Condition.string_equals("$.status_result.Payload.transcribe_status", "COMPLETED"),
-                        success_state
+                        sfn.Condition.string_equals(
+                            "$.status_result.Payload.transcribe_status", "COMPLETED"),
+                        qa_extraction_task.next(success_state)
                     )
                     .when(
-                        sfn.Condition.string_equals("$.status_result.Payload.transcribe_status", "FAILED"),
+                        sfn.Condition.string_equals(
+                            "$.status_result.Payload.transcribe_status", "FAILED"),
                         failure_state
                     )
                     .otherwise(wait_for_transcription)

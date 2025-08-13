@@ -35,13 +35,13 @@ class InterviewBucketStack(Stack):
             sources=[aws_s3_deployment.Source.asset("src/static/interview")],
             destination_bucket=bucket,
         )
-    
+
     def add_event_notifications(self, lambda_function):
         """Add S3 event notifications for audio files to trigger Lambda function."""
-        
+
         # Add S3 event notifications for different audio file types
         audio_extensions = [".mp3", ".m4a", ".wav", ".flac"]
-        
+
         for ext in audio_extensions:
             self.upload_bucket.add_event_notification(
                 aws_s3.EventType.OBJECT_CREATED,
