@@ -107,7 +107,7 @@ def extract_qa_pairs(bedrock_client, transcript):
 
     try:
         response = bedrock_client.invoke_model(
-            modelId='anthropic.claude-3-5-haiku-20241022-v1:0',
+            modelId='us.anthropic.claude-3-5-haiku-20241022-v1:0',
             body=json.dumps(request_body),
             contentType='application/json',
             accept='application/json'
