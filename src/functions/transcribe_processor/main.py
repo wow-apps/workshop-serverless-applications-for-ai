@@ -43,7 +43,7 @@ def handler(event, context):
             TranscriptionJobName=job_name,
             Media={'MediaFileUri': audio_uri},
             MediaFormat=key.split('.')[-1].lower(),
-            LanguageCode='en-US',
+            LanguageCode='ru-RU',
             Settings={
                 'ShowSpeakerLabels': True,
                 'MaxSpeakerLabels': 2,  # Interviewer and Candidate

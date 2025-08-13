@@ -69,13 +69,15 @@ def extract_qa_pairs(bedrock_client, transcript):
     """
 
     prompt = f"""
-    Please analyze the following interview transcript and extract all question-answer pairs. 
+    Please analyze the following Russian interview transcript and extract all question-answer pairs. 
     
     The transcript contains dialogue between an Interviewer and a Candidate, marked with "Interviewer:" and "Candidate:" prefixes.
+    The conversation is in Russian language.
     
     Extract each question asked by the interviewer and the corresponding answer given by the candidate.
     
     Return the result as a JSON array where each object has "question" and "answer" fields.
+    Keep the original Russian text in both question and answer fields.
     
     Rules:
     1. Only extract complete question-answer pairs
@@ -84,6 +86,7 @@ def extract_qa_pairs(bedrock_client, transcript):
     4. Combine multiple consecutive statements from the same speaker into one question or answer
     5. Skip small talk, introductions, and closing remarks
     6. Focus on technical questions and substantial answers
+    7. Preserve the original Russian text - do not translate
     
     Transcript:
     {transcript}
