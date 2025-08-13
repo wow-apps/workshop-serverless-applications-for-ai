@@ -92,9 +92,26 @@ def check_transcription_status(event, context):
             transcript_uri = response['TranscriptionJob']['Transcript']['TranscriptFileUri']
 
             # Parse S3 URI to get bucket and key
-            uri_parts = transcript_uri.replace('s3://', '').split('/', 1)
-            result_bucket = uri_parts[0]
-            result_key = uri_parts[1]
+            if transcript_uri.startswith('https://'):
+                # Handle HTTPS URL format: https://s3.region.amazonaws.com/bucket/key
+                # or https://bucket.s3.region.amazonaws.com/key
+                if '.s3.' in transcript_uri:
+                    # Format: https://bucket.s3.region.amazonaws.com/key
+                    uri_without_protocol = transcript_uri.replace('https://', '')
+                    parts = uri_without_protocol.split('/')
+                    result_bucket = parts[0].split('.')[0]  # Extract bucket from hostname
+                    result_key = '/'.join(parts[1:])  # Everything after bucket
+                else:
+                    # Format: https://s3.region.amazonaws.com/bucket/key
+                    uri_without_protocol = transcript_uri.replace('https://', '')
+                    parts = uri_without_protocol.split('/')
+                    result_bucket = parts[1]  # Second part is bucket
+                    result_key = '/'.join(parts[2:])  # Everything after bucket
+            else:
+                # Handle S3 URI format: s3://bucket/key
+                uri_parts = transcript_uri.replace('s3://', '').split('/', 1)
+                result_bucket = uri_parts[0]
+                result_key = uri_parts[1]
 
             # Download transcription result
             transcript_response = s3.get_object(
