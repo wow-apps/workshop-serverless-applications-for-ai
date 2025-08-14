@@ -2,6 +2,7 @@ import json
 import boto3
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 
 def create_technical_vocabulary():
@@ -255,23 +256,64 @@ def check_transcription_status(event, context):
             transcript_data = json.loads(
                 transcript_response['Body'].read().decode('utf-8'))
 
-            # Extract speaker-separated transcript
+            # Extract raw transcript data for chunking
             segments = transcript_data['results']['speaker_labels']['segments']
             items = transcript_data['results']['items']
 
-            # Build speaker-separated transcript
+            # Build speaker-separated transcript (for backwards compatibility)
             transcript_text = format_speaker_transcript(segments, items)
+            
+            # Build utterances with timestamps for chunking
+            utterances = build_utterances_with_timestamps(segments, items)
 
-            # Save to DynamoDB
+            # Save to DynamoDB without large raw data (due to 400KB item size limit)
+            # For large transcripts, we'll store utterances for chunking and skip raw data
             table = dynamodb.Table('interview_transcriptions')
-            table.put_item(
-                Item={
-                    'id': event['interview_id'],
-                    'position_name': event['position_name'],
-                    'position_description': event['position_description'],
-                    'interview_transcript': transcript_text,
-                    'created_at': event['created_at']
-                }
+            
+            # Calculate sizes to determine what we can store
+            transcript_size = len(transcript_text.encode('utf-8'))
+            utterances_size = len(str(utterances).encode('utf-8'))
+            
+            # DynamoDB item size limit is 400KB, leave room for metadata
+            MAX_SAFE_SIZE = 350 * 1024  # 350KB to be safe
+            
+            # Prepare the item
+            item = {
+                'id': event['interview_id'],
+                'position_name': event['position_name'],
+                'position_description': event['position_description'],
+                'created_at': event['created_at'],
+                'processing_status': 'transcribed',
+                'transcript_size_bytes': transcript_size,
+                'utterance_count': len(utterances),
+                'total_duration_ms': utterances[-1]['end_time_ms'] if utterances else 0
+            }
+            
+            # Only store transcript text if it fits
+            if transcript_size < MAX_SAFE_SIZE // 2:  # Use half the space for transcript
+                item['interview_transcript'] = transcript_text
+            else:
+                # For very large transcripts, store summary info only
+                item['interview_transcript'] = f"[Large transcript - {len(utterances)} utterances, {transcript_size} bytes]"
+                print(f"Transcript too large ({transcript_size} bytes), storing summary only")
+            
+            # Store utterances separately due to size
+            # We'll chunk and process them in the next step
+            # For now, just store a sample for debugging
+            if len(utterances) > 10:
+                item['utterances_sample'] = utterances[:5] + utterances[-5:]  # First and last 5
+            else:
+                item['utterances_sample'] = utterances
+            
+            table.put_item(Item=item)
+            
+            # Store full utterances in a separate location (S3) for chunking
+            s3_key = f"utterances/{event['interview_id']}_utterances.json"
+            s3.put_object(
+                Bucket=event['bucket'],
+                Key=s3_key,
+                Body=json.dumps(utterances, default=str),  # default=str handles Decimal serialization
+                ContentType='application/json'
             )
 
             return {
@@ -359,3 +401,104 @@ def format_speaker_transcript(segments, items):
         transcript_lines.append(f"{current_speaker}: {' '.join(current_text)}")
 
     return '\n\n'.join(transcript_lines)
+
+
+def build_utterances_with_timestamps(segments, items):
+    """
+    Build structured utterances with timestamps for efficient chunking.
+    Each utterance represents a continuous speech from one speaker.
+    """
+    
+    # Create item lookup by start time with confidence-based selection
+    item_lookup = {}
+    for item in items:
+        if item['type'] == 'pronunciation':
+            start_time = float(item['start_time'])
+            end_time = float(item['end_time'])
+            
+            # Select best alternative based on confidence score
+            best_alternative = item['alternatives'][0]
+            best_confidence = float(best_alternative.get('confidence', '0'))
+            
+            for alt in item['alternatives']:
+                confidence = float(alt.get('confidence', '0'))
+                if confidence > best_confidence:
+                    best_confidence = confidence
+                    best_alternative = alt
+            
+            item_lookup[start_time] = {
+                'word': best_alternative['content'],
+                'start_time': Decimal(str(start_time)),
+                'end_time': Decimal(str(end_time)),
+                'confidence': Decimal(str(best_confidence))
+            }
+    
+    utterances = []
+    current_speaker = None
+    current_words = []
+    current_start_time = None
+    current_end_time = None
+    utterance_id = 0
+    
+    for segment in segments:
+        speaker_label = segment['speaker_label']
+        
+        # Map speaker labels to meaningful names
+        speaker_name = "Interviewer" if speaker_label == 'spk_0' else "Candidate"
+        
+        # If speaker changed, save previous utterance and start new one
+        if current_speaker != speaker_name:
+            if current_words and current_speaker:
+                # Calculate average confidence as Decimal
+                avg_confidence = Decimal('0')
+                if current_words:
+                    confidence_sum = sum(w['confidence'] for w in current_words)
+                    avg_confidence = confidence_sum / Decimal(str(len(current_words)))
+                
+                utterances.append({
+                    'utterance_id': utterance_id,
+                    'speaker': current_speaker,
+                    'text': ' '.join([w['word'] for w in current_words]),
+                    'start_time_ms': int(float(current_start_time) * 1000),
+                    'end_time_ms': int(float(current_end_time) * 1000),
+                    'word_count': len(current_words),
+                    'avg_confidence': avg_confidence
+                })
+                utterance_id += 1
+            
+            current_speaker = speaker_name
+            current_words = []
+            current_start_time = None
+            current_end_time = None
+        
+        # Add words from this segment
+        for item in segment['items']:
+            start_time = float(item['start_time'])
+            if start_time in item_lookup:
+                word_data = item_lookup[start_time]
+                current_words.append(word_data)
+                
+                # Update utterance timing
+                if current_start_time is None:
+                    current_start_time = word_data['start_time']
+                current_end_time = word_data['end_time']
+    
+    # Add final utterance
+    if current_words and current_speaker:
+        # Calculate average confidence as Decimal
+        avg_confidence = Decimal('0')
+        if current_words:
+            confidence_sum = sum(w['confidence'] for w in current_words)
+            avg_confidence = confidence_sum / Decimal(str(len(current_words)))
+        
+        utterances.append({
+            'utterance_id': utterance_id,
+            'speaker': current_speaker,
+            'text': ' '.join([w['word'] for w in current_words]),
+            'start_time_ms': int(float(current_start_time) * 1000),
+            'end_time_ms': int(float(current_end_time) * 1000),
+            'word_count': len(current_words),
+            'avg_confidence': avg_confidence
+        })
+    
+    return utterances
