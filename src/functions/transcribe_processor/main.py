@@ -10,12 +10,12 @@ def create_technical_vocabulary():
     Create a custom vocabulary for technical interview terms in Russian.
     Returns vocabulary phrases for common programming and IT terms.
     """
-    
+
     # Common technical terms in Russian interviews
     vocabulary_phrases = [
         # Programming concepts
         "программирование",
-        "алгоритм", 
+        "алгоритм",
         "структура данных",
         "база данных",
         "фреймворк",
@@ -36,11 +36,11 @@ def create_technical_vocabulary():
         "AWS",
         "Lambda",
         "DynamoDB",
-        
+
         # Programming languages (as pronounced in Russian)
         "Пайтон",
         "Джава",
-        "Джаваскрипт",  
+        "Джаваскрипт",
         "Тайпскрипт",
         "Реакт",
         "Ноде",
@@ -48,7 +48,7 @@ def create_technical_vocabulary():
         "Си шарп",
         "Го",
         "Раст",
-        
+
         # Common interview phrases
         "опыт работы",
         "проект",
@@ -65,7 +65,7 @@ def create_technical_vocabulary():
         "merge",
         "branch",
         "commit",
-        
+
         # Soft skills
         "коммуникация",
         "лидерство",
@@ -76,7 +76,7 @@ def create_technical_vocabulary():
         "deadline",
         "milestone"
     ]
-    
+
     return vocabulary_phrases
 
 
@@ -85,16 +85,16 @@ def ensure_custom_vocabulary(transcribe_client, vocabulary_name="technical-inter
     Ensure custom vocabulary exists for technical interview terms.
     Creates it if it doesn't exist, returns vocabulary status.
     """
-    
+
     try:
         # Check if vocabulary already exists
         response = transcribe_client.get_vocabulary(VocabularyName=vocabulary_name)
         return response['VocabularyState'], vocabulary_name
-        
+
     except transcribe_client.exceptions.NotFoundException:
         # Vocabulary doesn't exist, create it
         vocabulary_phrases = create_technical_vocabulary()
-        
+
         try:
             transcribe_client.create_vocabulary(
                 VocabularyName=vocabulary_name,
@@ -102,11 +102,11 @@ def ensure_custom_vocabulary(transcribe_client, vocabulary_name="technical-inter
                 Phrases=vocabulary_phrases
             )
             return 'PENDING', vocabulary_name
-            
+
         except Exception as e:
             print(f"Failed to create custom vocabulary: {str(e)}")
             return None, None
-    
+
     except Exception as e:
         print(f"Error checking vocabulary: {str(e)}")
         return None, None
@@ -150,7 +150,7 @@ def handler(event, context):
 
         # Step 2: Setup custom vocabulary for technical terms
         vocabulary_state, vocabulary_name = ensure_custom_vocabulary(transcribe)
-        
+
         # Step 3: Start Transcribe job
         job_name = f"interview-{interview_id}"
         audio_uri = f"s3://{bucket}/{key}"
@@ -158,13 +158,13 @@ def handler(event, context):
         # Enhanced transcription settings for better Russian language accuracy
         transcribe_settings = {
             'ShowSpeakerLabels': True,
-            'MaxSpeakerLabels': 2,  # Interviewer and Candidate
+            'MaxSpeakerLabels': 2,
             'ChannelIdentification': False,
-            'ShowAlternatives': True,  # Enable confidence scores and alternatives
-            'MaxAlternatives': 3,  # Get up to 3 alternatives for better accuracy
-            'VocabularyFilterMethod': 'remove',  # Remove filler words and profanity
+            'ShowAlternatives': True,
+            'MaxAlternatives': 3,
+            'VocabularyFilterMethod': 'remove',
         }
-        
+
         # Add custom vocabulary if it's ready
         if vocabulary_state == 'READY' and vocabulary_name:
             transcribe_settings['VocabularyName'] = vocabulary_name
@@ -184,9 +184,6 @@ def handler(event, context):
             'OutputBucketName': bucket,
             'OutputKey': f"transcriptions/{job_name}.json"
         }
-        
-        # Don't use JobExecutionSettings to avoid needing a data access role
-        # AWS Transcribe will process immediately by default
 
         transcribe_response = transcribe.start_transcription_job(**job_params)
 
@@ -262,21 +259,21 @@ def check_transcription_status(event, context):
 
             # Build speaker-separated transcript (for backwards compatibility)
             transcript_text = format_speaker_transcript(segments, items)
-            
+
             # Build utterances with timestamps for chunking
             utterances = build_utterances_with_timestamps(segments, items)
 
             # Save to DynamoDB without large raw data (due to 400KB item size limit)
             # For large transcripts, we'll store utterances for chunking and skip raw data
             table = dynamodb.Table('interview_transcriptions')
-            
+
             # Calculate sizes to determine what we can store
             transcript_size = len(transcript_text.encode('utf-8'))
             utterances_size = len(str(utterances).encode('utf-8'))
-            
+
             # DynamoDB item size limit is 400KB, leave room for metadata
             MAX_SAFE_SIZE = 350 * 1024  # 350KB to be safe
-            
+
             # Prepare the item
             item = {
                 'id': event['interview_id'],
@@ -288,15 +285,16 @@ def check_transcription_status(event, context):
                 'utterance_count': len(utterances),
                 'total_duration_ms': utterances[-1]['end_time_ms'] if utterances else 0
             }
-            
+
             # Only store transcript text if it fits
             if transcript_size < MAX_SAFE_SIZE // 2:  # Use half the space for transcript
                 item['interview_transcript'] = transcript_text
             else:
                 # For very large transcripts, store summary info only
-                item['interview_transcript'] = f"[Large transcript - {len(utterances)} utterances, {transcript_size} bytes]"
+                item[
+                    'interview_transcript'] = f"[Large transcript - {len(utterances)} utterances, {transcript_size} bytes]"
                 print(f"Transcript too large ({transcript_size} bytes), storing summary only")
-            
+
             # Store utterances separately due to size
             # We'll chunk and process them in the next step
             # For now, just store a sample for debugging
@@ -304,15 +302,15 @@ def check_transcription_status(event, context):
                 item['utterances_sample'] = utterances[:5] + utterances[-5:]  # First and last 5
             else:
                 item['utterances_sample'] = utterances
-            
+
             table.put_item(Item=item)
-            
+
             # Store full utterances in a separate location (S3) for chunking
             s3_key = f"utterances/{event['interview_id']}_utterances.json"
             s3.put_object(
                 Bucket=event['bucket'],
                 Key=s3_key,
-                Body=json.dumps(utterances, default=str),  # default=str handles Decimal serialization
+                Body=json.dumps(utterances, default=str),
                 ContentType='application/json'
             )
 
@@ -350,18 +348,18 @@ def format_speaker_transcript(segments, items):
     for item in items:
         if item['type'] == 'pronunciation':
             start_time = float(item['start_time'])
-            
+
             # Select best alternative based on confidence score
             best_alternative = item['alternatives'][0]  # Default to first
             best_confidence = float(best_alternative.get('confidence', '0'))
-            
+
             # Check all alternatives for highest confidence
             for alt in item['alternatives']:
                 confidence = float(alt.get('confidence', '0'))
                 if confidence > best_confidence:
                     best_confidence = confidence
                     best_alternative = alt
-            
+
             # Only use alternatives with confidence > 0.7 for Russian
             if best_confidence > 0.7:
                 item_lookup[start_time] = best_alternative['content']
@@ -408,44 +406,44 @@ def build_utterances_with_timestamps(segments, items):
     Build structured utterances with timestamps for efficient chunking.
     Each utterance represents a continuous speech from one speaker.
     """
-    
+
     # Create item lookup by start time with confidence-based selection
     item_lookup = {}
     for item in items:
         if item['type'] == 'pronunciation':
             start_time = float(item['start_time'])
             end_time = float(item['end_time'])
-            
+
             # Select best alternative based on confidence score
             best_alternative = item['alternatives'][0]
             best_confidence = float(best_alternative.get('confidence', '0'))
-            
+
             for alt in item['alternatives']:
                 confidence = float(alt.get('confidence', '0'))
                 if confidence > best_confidence:
                     best_confidence = confidence
                     best_alternative = alt
-            
+
             item_lookup[start_time] = {
                 'word': best_alternative['content'],
                 'start_time': Decimal(str(start_time)),
                 'end_time': Decimal(str(end_time)),
                 'confidence': Decimal(str(best_confidence))
             }
-    
+
     utterances = []
     current_speaker = None
     current_words = []
     current_start_time = None
     current_end_time = None
     utterance_id = 0
-    
+
     for segment in segments:
         speaker_label = segment['speaker_label']
-        
+
         # Map speaker labels to meaningful names
         speaker_name = "Interviewer" if speaker_label == 'spk_0' else "Candidate"
-        
+
         # If speaker changed, save previous utterance and start new one
         if current_speaker != speaker_name:
             if current_words and current_speaker:
@@ -454,7 +452,7 @@ def build_utterances_with_timestamps(segments, items):
                 if current_words:
                     confidence_sum = sum(w['confidence'] for w in current_words)
                     avg_confidence = confidence_sum / Decimal(str(len(current_words)))
-                
+
                 utterances.append({
                     'utterance_id': utterance_id,
                     'speaker': current_speaker,
@@ -465,24 +463,24 @@ def build_utterances_with_timestamps(segments, items):
                     'avg_confidence': avg_confidence
                 })
                 utterance_id += 1
-            
+
             current_speaker = speaker_name
             current_words = []
             current_start_time = None
             current_end_time = None
-        
+
         # Add words from this segment
         for item in segment['items']:
             start_time = float(item['start_time'])
             if start_time in item_lookup:
                 word_data = item_lookup[start_time]
                 current_words.append(word_data)
-                
+
                 # Update utterance timing
                 if current_start_time is None:
                     current_start_time = word_data['start_time']
                 current_end_time = word_data['end_time']
-    
+
     # Add final utterance
     if current_words and current_speaker:
         # Calculate average confidence as Decimal
@@ -490,7 +488,7 @@ def build_utterances_with_timestamps(segments, items):
         if current_words:
             confidence_sum = sum(w['confidence'] for w in current_words)
             avg_confidence = confidence_sum / Decimal(str(len(current_words)))
-        
+
         utterances.append({
             'utterance_id': utterance_id,
             'speaker': current_speaker,
@@ -500,5 +498,5 @@ def build_utterances_with_timestamps(segments, items):
             'word_count': len(current_words),
             'avg_confidence': avg_confidence
         })
-    
+
     return utterances

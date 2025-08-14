@@ -1,7 +1,6 @@
 from aws_cdk import (
     aws_lambda as _lambda,
     aws_iam as iam,
-    aws_s3_notifications as s3n,
     Stack,
     Duration,
 )
@@ -10,12 +9,12 @@ from constructs import Construct
 
 class LambdaStack(Stack):
     def __init__(
-        self,
-        scope: Construct,
-        construct_id: str,
-        kms_key,
-        state_machine,
-        **kwargs
+            self,
+            scope: Construct,
+            construct_id: str,
+            kms_key,
+            state_machine,
+            **kwargs
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 

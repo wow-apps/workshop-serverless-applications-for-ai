@@ -8,11 +8,11 @@ from constructs import Construct
 
 class DynamoDbStack(Stack):
     def __init__(
-        self,
-        scope: Construct,
-        construct_id: str,
-        kms_key,
-        **kwargs
+            self,
+            scope: Construct,
+            construct_id: str,
+            kms_key,
+            **kwargs
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 

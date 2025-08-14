@@ -130,8 +130,8 @@ def extract_qa_pairs(bedrock_client, transcript):
             raise Exception("Bedrock response is not a JSON array")
 
         for pair in qa_pairs:
-            if (not isinstance(pair, dict) or 
-                'question' not in pair or 'answer' not in pair):
+            if (not isinstance(pair, dict) or
+                    'question' not in pair or 'answer' not in pair):
                 raise Exception("Invalid Q&A pair format in Bedrock response")
 
         return qa_pairs

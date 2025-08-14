@@ -11,7 +11,6 @@ from stacks import (
     LambdaStack,
 )
 
-
 app = cdk.App()
 
 environment = cdk.Environment(
@@ -44,7 +43,6 @@ dynamodb_stack = DynamoDbStack(
 )
 
 # Use existing system-defined inference profile for Claude 3.5 Haiku
-# This has been verified to work with the account
 bedrock_inference_profile_arn = f"arn:aws:bedrock:{config.env_region}:{config.env_account}:inference-profile/us.anthropic.claude-3-5-haiku-20241022-v1:0"
 
 # Step Functions Stack for orchestration

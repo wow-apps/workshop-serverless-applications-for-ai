@@ -11,12 +11,12 @@ from constructs import Construct
 
 class StepFunctionsStack(Stack):
     def __init__(
-        self,
-        scope: Construct,
-        construct_id: str,
-        kms_key,
-        bedrock_inference_profile_arn: str,
-        **kwargs
+            self,
+            scope: Construct,
+            construct_id: str,
+            kms_key,
+            bedrock_inference_profile_arn: str,
+            **kwargs
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
@@ -71,7 +71,7 @@ class StepFunctionsStack(Stack):
             }
         )
 
-        # NEW: Lambda function for building chunk manifest (for large transcripts)
+        # Lambda function for building chunk manifest (for large transcripts)
         self.chunk_manifest_builder_function = _lambda.Function(
             self,
             "ChunkManifestBuilderFunction",
@@ -84,7 +84,7 @@ class StepFunctionsStack(Stack):
             }
         )
 
-        # NEW: Lambda function for chunked Q&A extraction using Haiku
+        # Lambda function for chunked Q&A extraction using Haiku
         self.chunked_qa_extractor_function = _lambda.Function(
             self,
             "ChunkedQAExtractorFunction",
@@ -122,7 +122,7 @@ class StepFunctionsStack(Stack):
                 effect=iam.Effect.ALLOW,
                 actions=[
                     "s3:GetObject",
-                    "s3:PutObject"  # Needed to store utterances for large transcripts
+                    "s3:PutObject"
                 ],
                 resources=["arn:aws:s3:::*/*"]
             )
@@ -133,7 +133,7 @@ class StepFunctionsStack(Stack):
             effect=iam.Effect.ALLOW,
             actions=[
                 "transcribe:StartTranscriptionJob",
-                "transcribe:GetTranscriptionJob", 
+                "transcribe:GetTranscriptionJob",
                 "transcribe:ListTranscriptionJobs",
                 # Custom vocabulary permissions for Russian language optimization
                 "transcribe:CreateVocabulary",
@@ -217,7 +217,7 @@ class StepFunctionsStack(Stack):
             dynamodb_transcriptions_policy)
         self.qa_extractor_function.add_to_role_policy(dynamodb_qa_policy)
         self.qa_extractor_function.add_to_role_policy(bedrock_policy)
-        
+
         # Grant S3 permissions to chunk manifest builder (needs to read utterances from S3)
         s3_read_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
@@ -264,8 +264,8 @@ class StepFunctionsStack(Stack):
             result_path="$.qa_result"
         )
 
-        # NEW: Chunked processing tasks for large transcripts
-        
+        # Chunked processing tasks for large transcripts
+
         # Build chunk manifest
         build_chunk_manifest_task = tasks.LambdaInvoke(
             self,
@@ -282,12 +282,12 @@ class StepFunctionsStack(Stack):
             max_concurrency=10,  # Process up to 10 chunks in parallel
             items_path="$.chunk_manifest_result.Payload.chunks",
             parameters={
-                "id.$": "$$.Map.Item.Value.chunk_index", 
+                "id.$": "$$.Map.Item.Value.chunk_index",
                 "position.$": "$.chunk_manifest_result.Payload.position_name",
                 "interview_id.$": "$.chunk_manifest_result.Payload.interview_id"
             }
         )
-        
+
         # Add the chunked Q&A extraction as the iterator
         chunked_qa_extraction_map.iterator(
             tasks.LambdaInvoke(
