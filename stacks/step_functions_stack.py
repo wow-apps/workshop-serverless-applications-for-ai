@@ -15,6 +15,7 @@ class StepFunctionsStack(Stack):
         scope: Construct,
         construct_id: str,
         kms_key,
+        bedrock_inference_profile_arn: str,
         **kwargs
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -66,6 +67,7 @@ class StepFunctionsStack(Stack):
             timeout=Duration.minutes(10),
             environment={
                 "KMS_KEY_ID": kms_key.key_id,
+                "BEDROCK_INFERENCE_PROFILE_ARN": bedrock_inference_profile_arn,
             }
         )
 
@@ -137,13 +139,19 @@ class StepFunctionsStack(Stack):
         )
 
         # Grant Bedrock permissions for Q&A extraction
+        # Need permissions for:
+        # 1. The inference profile (can be cross-region)
+        # 2. The underlying foundation model in any region (inference profiles route across regions)
         bedrock_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
             actions=[
                 "bedrock:InvokeModel"
             ],
             resources=[
-                "arn:aws:bedrock:*:*:inference-profile/us.anthropic.claude-3-5-haiku-20241022-v1:0"
+                # Inference profile
+                bedrock_inference_profile_arn,
+                # Foundation model in any region (needed for cross-region inference)
+                "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0"
             ]
         )
 

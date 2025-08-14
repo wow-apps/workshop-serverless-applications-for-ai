@@ -1,6 +1,7 @@
 import json
 import boto3
 import uuid
+import os
 from datetime import datetime
 
 
@@ -106,8 +107,13 @@ def extract_qa_pairs(bedrock_client, transcript):
     }
 
     try:
+        # Get the inference profile ARN from environment variables
+        inference_profile_arn = os.environ.get('BEDROCK_INFERENCE_PROFILE_ARN')
+        if not inference_profile_arn:
+            raise Exception("BEDROCK_INFERENCE_PROFILE_ARN environment variable not set")
+
         response = bedrock_client.invoke_model(
-            modelId='us.anthropic.claude-3-5-haiku-20241022-v1:0',
+            modelId=inference_profile_arn,
             body=json.dumps(request_body),
             contentType='application/json',
             accept='application/json'
