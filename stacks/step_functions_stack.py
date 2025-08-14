@@ -98,13 +98,19 @@ class StepFunctionsStack(Stack):
             )
         )
 
-        # Grant Transcribe permissions
+        # Grant Transcribe permissions including custom vocabulary
         transcribe_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
             actions=[
                 "transcribe:StartTranscriptionJob",
-                "transcribe:GetTranscriptionJob",
-                "transcribe:ListTranscriptionJobs"
+                "transcribe:GetTranscriptionJob", 
+                "transcribe:ListTranscriptionJobs",
+                # Custom vocabulary permissions for Russian language optimization
+                "transcribe:CreateVocabulary",
+                "transcribe:GetVocabulary",
+                "transcribe:ListVocabularies",
+                "transcribe:UpdateVocabulary",
+                "transcribe:DeleteVocabulary"
             ],
             resources=["*"]
         )

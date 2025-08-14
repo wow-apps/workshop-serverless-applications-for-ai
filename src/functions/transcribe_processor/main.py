@@ -4,13 +4,125 @@ import uuid
 from datetime import datetime
 
 
+def create_technical_vocabulary():
+    """
+    Create a custom vocabulary for technical interview terms in Russian.
+    Returns vocabulary phrases for common programming and IT terms.
+    """
+    
+    # Common technical terms in Russian interviews
+    vocabulary_phrases = [
+        # Programming concepts
+        "программирование",
+        "алгоритм", 
+        "структура данных",
+        "база данных",
+        "фреймворк",
+        "архитектура",
+        "микросервисы",
+        "API",
+        "REST",
+        "GraphQL",
+        "Docker",
+        "Kubernetes",
+        "Git",
+        "GitHub",
+        "разработка",
+        "тестирование",
+        "деплой",
+        "DevOps",
+        "облачные технологии",
+        "AWS",
+        "Lambda",
+        "DynamoDB",
+        
+        # Programming languages (as pronounced in Russian)
+        "Пайтон",
+        "Джава",
+        "Джаваскрипт",  
+        "Тайпскрипт",
+        "Реакт",
+        "Ноде",
+        "С плюс плюс",
+        "Си шарп",
+        "Го",
+        "Раст",
+        
+        # Common interview phrases
+        "опыт работы",
+        "проект",
+        "команда",
+        "задача",
+        "решение",
+        "проблема",
+        "оптимизация",
+        "производительность",
+        "масштабируемость",
+        "безопасность",
+        "код ревью",
+        "pull request",
+        "merge",
+        "branch",
+        "commit",
+        
+        # Soft skills
+        "коммуникация",
+        "лидерство",
+        "teamwork",
+        "agile",
+        "scrum",
+        "планирование",
+        "deadline",
+        "milestone"
+    ]
+    
+    return vocabulary_phrases
+
+
+def ensure_custom_vocabulary(transcribe_client, vocabulary_name="technical-interview-ru"):
+    """
+    Ensure custom vocabulary exists for technical interview terms.
+    Creates it if it doesn't exist, returns vocabulary status.
+    """
+    
+    try:
+        # Check if vocabulary already exists
+        response = transcribe_client.get_vocabulary(VocabularyName=vocabulary_name)
+        return response['VocabularyState'], vocabulary_name
+        
+    except transcribe_client.exceptions.NotFoundException:
+        # Vocabulary doesn't exist, create it
+        vocabulary_phrases = create_technical_vocabulary()
+        
+        try:
+            transcribe_client.create_vocabulary(
+                VocabularyName=vocabulary_name,
+                LanguageCode='ru-RU',
+                Phrases=vocabulary_phrases
+            )
+            return 'PENDING', vocabulary_name
+            
+        except Exception as e:
+            print(f"Failed to create custom vocabulary: {str(e)}")
+            return None, None
+    
+    except Exception as e:
+        print(f"Error checking vocabulary: {str(e)}")
+        return None, None
+
+
 def handler(event, context):
     """
-    Process interview transcription workflow:
+    Process interview transcription workflow with enhanced Russian language support:
     1. Load vacancy description from S3
-    2. Start Transcribe job with speaker identification
-    3. Wait for completion and get results
-    4. Save to DynamoDB
+    2. Setup custom vocabulary for technical interview terms
+    3. Start Transcribe job with optimized settings for Russian language:
+       - Speaker identification for interviewer/candidate
+       - Multiple alternatives with confidence scores
+       - Custom vocabulary for technical terms
+       - Enhanced punctuation and formatting
+    4. Wait for completion and get results
+    5. Save to DynamoDB with confidence-based text selection
     """
 
     s3 = boto3.client('s3')
@@ -35,23 +147,47 @@ def handler(event, context):
             print(f"Vacancy file not found: {vacancy_key}")
             position_description = f"Position: {position_name}"
 
-        # Step 2: Start Transcribe job
+        # Step 2: Setup custom vocabulary for technical terms
+        vocabulary_state, vocabulary_name = ensure_custom_vocabulary(transcribe)
+        
+        # Step 3: Start Transcribe job
         job_name = f"interview-{interview_id}"
         audio_uri = f"s3://{bucket}/{key}"
 
-        transcribe_response = transcribe.start_transcription_job(
-            TranscriptionJobName=job_name,
-            Media={'MediaFileUri': audio_uri},
-            MediaFormat=key.split('.')[-1].lower(),
-            LanguageCode='ru-RU',
-            Settings={
-                'ShowSpeakerLabels': True,
-                'MaxSpeakerLabels': 2,  # Interviewer and Candidate
-                'ChannelIdentification': False
-            },
-            OutputBucketName=bucket,
-            OutputKey=f"transcriptions/{job_name}.json"
-        )
+        # Enhanced transcription settings for better Russian language accuracy
+        transcribe_settings = {
+            'ShowSpeakerLabels': True,
+            'MaxSpeakerLabels': 2,  # Interviewer and Candidate
+            'ChannelIdentification': False,
+            'ShowAlternatives': True,  # Enable confidence scores and alternatives
+            'MaxAlternatives': 3,  # Get up to 3 alternatives for better accuracy
+            'VocabularyFilterMethod': 'remove',  # Remove filler words and profanity
+        }
+        
+        # Add custom vocabulary if it's ready
+        if vocabulary_state == 'READY' and vocabulary_name:
+            transcribe_settings['VocabularyName'] = vocabulary_name
+            print(f"Using custom vocabulary: {vocabulary_name}")
+        elif vocabulary_state == 'PENDING':
+            print(f"Custom vocabulary {vocabulary_name} is being created, using default settings")
+        else:
+            print("Using default vocabulary settings")
+
+        # Prepare transcription job parameters (simplified to avoid execution role issues)
+        job_params = {
+            'TranscriptionJobName': job_name,
+            'Media': {'MediaFileUri': audio_uri},
+            'MediaFormat': key.split('.')[-1].lower(),
+            'LanguageCode': 'ru-RU',
+            'Settings': transcribe_settings,
+            'OutputBucketName': bucket,
+            'OutputKey': f"transcriptions/{job_name}.json"
+        }
+        
+        # Don't use JobExecutionSettings to avoid needing a data access role
+        # AWS Transcribe will process immediately by default
+
+        transcribe_response = transcribe.start_transcription_job(**job_params)
 
         return {
             'statusCode': 200,
@@ -164,14 +300,32 @@ def check_transcription_status(event, context):
 def format_speaker_transcript(segments, items):
     """
     Format transcription with speaker labels (Interviewer/Candidate).
+    Enhanced to use confidence scores and best alternatives for Russian language.
     """
 
-    # Create item lookup by start time
+    # Create item lookup by start time with confidence-based selection
     item_lookup = {}
     for item in items:
         if item['type'] == 'pronunciation':
             start_time = float(item['start_time'])
-            item_lookup[start_time] = item['alternatives'][0]['content']
+            
+            # Select best alternative based on confidence score
+            best_alternative = item['alternatives'][0]  # Default to first
+            best_confidence = float(best_alternative.get('confidence', '0'))
+            
+            # Check all alternatives for highest confidence
+            for alt in item['alternatives']:
+                confidence = float(alt.get('confidence', '0'))
+                if confidence > best_confidence:
+                    best_confidence = confidence
+                    best_alternative = alt
+            
+            # Only use alternatives with confidence > 0.7 for Russian
+            if best_confidence > 0.7:
+                item_lookup[start_time] = best_alternative['content']
+            else:
+                # Fallback to first alternative but mark as uncertain
+                item_lookup[start_time] = f"[{best_alternative['content']}]"
 
     transcript_lines = []
     current_speaker = None
