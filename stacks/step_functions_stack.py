@@ -121,7 +121,8 @@ class StepFunctionsStack(Stack):
             iam.PolicyStatement(
                 effect=iam.Effect.ALLOW,
                 actions=[
-                    "s3:GetObject"
+                    "s3:GetObject",
+                    "s3:PutObject"  # Needed to store utterances for large transcripts
                 ],
                 resources=["arn:aws:s3:::*/*"]
             )
