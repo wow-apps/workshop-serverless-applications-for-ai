@@ -11,8 +11,13 @@ def handler(event, context):
     
     dynamodb = boto3.resource('dynamodb')
     
-    interview_id = event['interview_id']
-    position_name = event['position_name']
+    # Extract interview_id from Step Functions event
+    interview_id = event.get('interview_id')
+    
+    if not interview_id:
+        raise Exception(f"interview_id not found in event: {event}")
+    
+    print(f"Processing interview_id: {interview_id}")
     
     try:
         # Get transcription metadata from DynamoDB
@@ -23,7 +28,10 @@ def handler(event, context):
             raise Exception(f"Interview transcription not found: {interview_id}")
         
         interview_data = response['Item']
+        position_name = interview_data['position_name']  # Get from DynamoDB record
         position_description = interview_data['position_description']
+        
+        print(f"Retrieved from DynamoDB - position_name: {position_name}")
         
         # Get full utterances from S3 (stored there due to DynamoDB size limits)
         s3 = boto3.client('s3')
@@ -166,8 +174,8 @@ def build_chunks(utterances, position_name, interview_id):
                 'speakers': speakers,
                 'utterance_count': len(chunk_utterances),
                 'word_count': sum(u['word_count'] for u in chunk_utterances),
-                'avg_confidence': sum(u['avg_confidence'] for u in chunk_utterances) / len(chunk_utterances),
-                'duration_ms': chunk_utterances[-1]['end_time_ms'] - chunk_utterances[0]['start_time_ms']
+                'avg_confidence': sum(Decimal(str(u['avg_confidence'])) for u in chunk_utterances) / Decimal(str(len(chunk_utterances))),
+                'duration_ms': int(chunk_utterances[-1]['end_time_ms']) - int(chunk_utterances[0]['start_time_ms'])
             }
             
             chunks.append(chunk)
@@ -232,7 +240,9 @@ def format_timestamp(ms):
     Format milliseconds to MM:SS timestamp.
     """
     
-    seconds = ms // 1000
+    # Convert to int to handle Decimal types
+    ms_int = int(ms)
+    seconds = ms_int // 1000
     minutes = seconds // 60
     seconds = seconds % 60
     return f"{minutes:02d}:{seconds:02d}"

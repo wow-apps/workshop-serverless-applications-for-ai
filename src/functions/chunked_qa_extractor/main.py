@@ -14,10 +14,24 @@ def handler(event, context):
     dynamodb = boto3.resource('dynamodb')
     
     # Get chunk data from the event (passed by Step Functions Map)
-    chunk_id = event['id']
-    chunk_data = event  # The chunk data is passed directly
+    chunk_index = event['id']  # This is actually the chunk_index
+    interview_id = event['interview_id']
+    position = event['position']
+    
+    # Construct the proper DynamoDB key (composite key format)
+    chunk_id = f"{interview_id}#{chunk_index}"
     
     try:
+        # Get the full chunk data from DynamoDB
+        chunk_table = dynamodb.Table('interview_chunks')
+        chunk_response = chunk_table.get_item(Key={'id': chunk_id})
+        
+        if 'Item' not in chunk_response:
+            raise Exception(f"Chunk not found in DynamoDB: {chunk_id}")
+        
+        chunk_data = chunk_response['Item']
+        print(f"Processing chunk {chunk_index} for interview {interview_id}")
+        
         # Extract Q&A pairs from this chunk
         qa_pairs = extract_qa_from_chunk(bedrock, chunk_data)
         
