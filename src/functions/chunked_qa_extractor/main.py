@@ -66,13 +66,12 @@ def handler(event, context):
         # Update chunk processing status
         chunk_table = dynamodb.Table('interview_chunks')
         chunk_table.update_item(
-            Key={'id': chunk_id},
+            Key={
+                'id': chunk_id},
             UpdateExpression='SET processing_status = :status, qa_count = :count',
             ExpressionAttributeValues={
                 ':status': 'qa_extracted',
-                ':count': saved_count
-            }
-        )
+                ':count': saved_count})
 
         return {
             'statusCode': 200,
@@ -88,13 +87,12 @@ def handler(event, context):
         # Update chunk with error status
         chunk_table = dynamodb.Table('interview_chunks')
         chunk_table.update_item(
-            Key={'id': chunk_id},
+            Key={
+                'id': chunk_id},
             UpdateExpression='SET processing_status = :status, error_message = :error',
             ExpressionAttributeValues={
                 ':status': 'extraction_failed',
-                ':error': str(e)
-            }
-        )
+                ':error': str(e)})
         raise
 
 
@@ -112,17 +110,17 @@ def extract_qa_from_chunk(bedrock_client, chunk_data):
         model_id = inference_profile_arn
 
     # Build the extraction prompt
-    system_prompt = """You are an expert at extracting structured Q&A data from interview transcripts. 
+    system_prompt = """You are an expert at extracting structured Q&A data from interview transcripts.
 You must return ONLY valid JSON with no additional text or explanation."""
 
-    user_prompt = f"""You'll receive a transcript segment with speakers and timestamps. 
+    user_prompt = f"""You'll receive a transcript segment with speakers and timestamps.
 Return ONLY valid JSON in this exact format:
 {{
   "qa": [
     {{
       "index": 0,
       "q_text": "Question text from interviewer",
-      "a_text": "Complete answer text from candidate", 
+      "a_text": "Complete answer text from candidate",
       "a_start_ms": 123000,
       "a_end_ms": 456000,
       "confidence": "high"

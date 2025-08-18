@@ -80,7 +80,8 @@ def create_technical_vocabulary():
     return vocabulary_phrases
 
 
-def ensure_custom_vocabulary(transcribe_client, vocabulary_name="technical-interview-ru"):
+def ensure_custom_vocabulary(transcribe_client,
+                             vocabulary_name="technical-interview-ru"):
     """
     Ensure custom vocabulary exists for technical interview terms.
     Creates it if it doesn't exist, returns vocabulary status.
@@ -88,7 +89,8 @@ def ensure_custom_vocabulary(transcribe_client, vocabulary_name="technical-inter
 
     try:
         # Check if vocabulary already exists
-        response = transcribe_client.get_vocabulary(VocabularyName=vocabulary_name)
+        response = transcribe_client.get_vocabulary(
+            VocabularyName=vocabulary_name)
         return response['VocabularyState'], vocabulary_name
 
     except transcribe_client.exceptions.NotFoundException:
@@ -149,7 +151,8 @@ def handler(event, context):
             position_description = f"Position: {position_name}"
 
         # Step 2: Setup custom vocabulary for technical terms
-        vocabulary_state, vocabulary_name = ensure_custom_vocabulary(transcribe)
+        vocabulary_state, vocabulary_name = ensure_custom_vocabulary(
+            transcribe)
 
         # Step 3: Start Transcribe job
         job_name = f"interview-{interview_id}"
@@ -170,11 +173,13 @@ def handler(event, context):
             transcribe_settings['VocabularyName'] = vocabulary_name
             print(f"Using custom vocabulary: {vocabulary_name}")
         elif vocabulary_state == 'PENDING':
-            print(f"Custom vocabulary {vocabulary_name} is being created, using default settings")
+            print(
+                f"Custom vocabulary {vocabulary_name} is being created, using default settings")
         else:
             print("Using default vocabulary settings")
 
-        # Prepare transcription job parameters (simplified to avoid execution role issues)
+        # Prepare transcription job parameters (simplified to avoid execution
+        # role issues)
         job_params = {
             'TranscriptionJobName': job_name,
             'Media': {'MediaFileUri': audio_uri},
@@ -231,13 +236,16 @@ def check_transcription_status(event, context):
                 # or https://bucket.s3.region.amazonaws.com/key
                 if '.s3.' in transcript_uri:
                     # Format: https://bucket.s3.region.amazonaws.com/key
-                    uri_without_protocol = transcript_uri.replace('https://', '')
+                    uri_without_protocol = transcript_uri.replace(
+                        'https://', '')
                     parts = uri_without_protocol.split('/')
-                    result_bucket = parts[0].split('.')[0]  # Extract bucket from hostname
+                    # Extract bucket from hostname
+                    result_bucket = parts[0].split('.')[0]
                     result_key = '/'.join(parts[1:])  # Everything after bucket
                 else:
                     # Format: https://s3.region.amazonaws.com/bucket/key
-                    uri_without_protocol = transcript_uri.replace('https://', '')
+                    uri_without_protocol = transcript_uri.replace(
+                        'https://', '')
                     parts = uri_without_protocol.split('/')
                     result_bucket = parts[1]  # Second part is bucket
                     result_key = '/'.join(parts[2:])  # Everything after bucket
@@ -264,7 +272,8 @@ def check_transcription_status(event, context):
             utterances = build_utterances_with_timestamps(segments, items)
 
             # Save to DynamoDB without large raw data (due to 400KB item size limit)
-            # For large transcripts, we'll store utterances for chunking and skip raw data
+            # For large transcripts, we'll store utterances for chunking and
+            # skip raw data
             table = dynamodb.Table('interview_transcriptions')
 
             # Calculate sizes to determine what we can store
@@ -293,13 +302,15 @@ def check_transcription_status(event, context):
                 # For very large transcripts, store summary info only
                 item[
                     'interview_transcript'] = f"[Large transcript - {len(utterances)} utterances, {transcript_size} bytes]"
-                print(f"Transcript too large ({transcript_size} bytes), storing summary only")
+                print(
+                    f"Transcript too large ({transcript_size} bytes), storing summary only")
 
             # Store utterances separately due to size
             # We'll chunk and process them in the next step
             # For now, just store a sample for debugging
             if len(utterances) > 10:
-                item['utterances_sample'] = utterances[:5] + utterances[-5:]  # First and last 5
+                item['utterances_sample'] = utterances[:5] + \
+                    utterances[-5:]  # First and last 5
             else:
                 item['utterances_sample'] = utterances
 
@@ -450,8 +461,10 @@ def build_utterances_with_timestamps(segments, items):
                 # Calculate average confidence as Decimal
                 avg_confidence = Decimal('0')
                 if current_words:
-                    confidence_sum = sum(w['confidence'] for w in current_words)
-                    avg_confidence = confidence_sum / Decimal(str(len(current_words)))
+                    confidence_sum = sum(w['confidence']
+                                         for w in current_words)
+                    avg_confidence = confidence_sum / \
+                        Decimal(str(len(current_words)))
 
                 utterances.append({
                     'utterance_id': utterance_id,
