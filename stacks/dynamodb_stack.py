@@ -18,22 +18,21 @@ class DynamoDbStack(Stack):
 
         # Interview Transcriptions Table
         # PK: id (uuid)
-        # Attributes: id, position_name, position_description, interview_transcript, created_at
+        # Attributes: id, position_name, position_description,
+        # interview_transcript, created_at
         self.interview_transcriptions_table = dynamodb.Table(
             self,
             "InterviewTranscriptionsTable",
             table_name="interview_transcriptions",
             partition_key=dynamodb.Attribute(
                 name="id",
-                type=dynamodb.AttributeType.STRING
-            ),
+                type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
             encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
             encryption_key=kms_key,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
-                point_in_time_recovery_enabled=True
-            ),
+                point_in_time_recovery_enabled=True),
         )
 
         # Add GSI for querying by position_name
@@ -55,15 +54,13 @@ class DynamoDbStack(Stack):
             table_name="interview_qa",
             partition_key=dynamodb.Attribute(
                 name="id",
-                type=dynamodb.AttributeType.STRING
-            ),
+                type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
             encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
             encryption_key=kms_key,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
-                point_in_time_recovery_enabled=True
-            ),
+                point_in_time_recovery_enabled=True),
         )
 
         # Add GSI for querying by interview_id
@@ -78,22 +75,21 @@ class DynamoDbStack(Stack):
 
         # Interview Chunks Table for chunked processing
         # PK: id (interview_id#chunk_index)
-        # Attributes: interview_id, chunk_index, text, speakers, timestamps, etc.
+        # Attributes: interview_id, chunk_index, text, speakers, timestamps,
+        # etc.
         self.interview_chunks_table = dynamodb.Table(
             self,
             "InterviewChunksTable",
             table_name="interview_chunks",
             partition_key=dynamodb.Attribute(
                 name="id",
-                type=dynamodb.AttributeType.STRING
-            ),
+                type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
             encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
             encryption_key=kms_key,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
-                point_in_time_recovery_enabled=True
-            ),
+                point_in_time_recovery_enabled=True),
         )
 
         # Add GSI for querying chunks by interview_id

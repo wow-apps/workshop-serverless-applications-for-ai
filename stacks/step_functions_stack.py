@@ -57,7 +57,8 @@ class StepFunctionsStack(Stack):
             }
         )
 
-        # Lambda function for Q&A extraction using Bedrock (legacy - for small transcripts)
+        # Lambda function for Q&A extraction using Bedrock (legacy - for small
+        # transcripts)
         self.qa_extractor_function = _lambda.Function(
             self,
             "QAExtractorFunction",
@@ -81,8 +82,7 @@ class StepFunctionsStack(Stack):
             timeout=Duration.minutes(5),
             environment={
                 "KMS_KEY_ID": kms_key.key_id,
-            }
-        )
+            })
 
         # Lambda function for chunked Q&A extraction using Haiku
         self.chunked_qa_extractor_function = _lambda.Function(
@@ -135,7 +135,8 @@ class StepFunctionsStack(Stack):
                 "transcribe:StartTranscriptionJob",
                 "transcribe:GetTranscriptionJob",
                 "transcribe:ListTranscriptionJobs",
-                # Custom vocabulary permissions for Russian language optimization
+                # Custom vocabulary permissions for Russian language
+                # optimization
                 "transcribe:CreateVocabulary",
                 "transcribe:GetVocabulary",
                 "transcribe:ListVocabularies",
@@ -177,7 +178,8 @@ class StepFunctionsStack(Stack):
         # Grant Bedrock permissions for Q&A extraction
         # Need permissions for:
         # 1. The inference profile (can be cross-region)
-        # 2. The underlying foundation model in any region (inference profiles route across regions)
+        # 2. The underlying foundation model in any region (inference profiles
+        # route across regions)
         bedrock_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
             actions=[
@@ -186,7 +188,8 @@ class StepFunctionsStack(Stack):
             resources=[
                 # Inference profile
                 bedrock_inference_profile_arn,
-                # Foundation model in any region (needed for cross-region inference)
+                # Foundation model in any region (needed for cross-region
+                # inference)
                 "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0"
             ]
         )
@@ -218,7 +221,8 @@ class StepFunctionsStack(Stack):
         self.qa_extractor_function.add_to_role_policy(dynamodb_qa_policy)
         self.qa_extractor_function.add_to_role_policy(bedrock_policy)
 
-        # Grant S3 permissions to chunk manifest builder (needs to read utterances from S3)
+        # Grant S3 permissions to chunk manifest builder (needs to read
+        # utterances from S3)
         s3_read_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
             actions=[
@@ -228,9 +232,11 @@ class StepFunctionsStack(Stack):
         )
 
         # Grant permissions to new chunked processing functions
-        self.chunk_manifest_builder_function.add_to_role_policy(dynamodb_chunks_policy)
+        self.chunk_manifest_builder_function.add_to_role_policy(
+            dynamodb_chunks_policy)
         self.chunk_manifest_builder_function.add_to_role_policy(s3_read_policy)
-        self.chunked_qa_extractor_function.add_to_role_policy(dynamodb_chunks_policy)
+        self.chunked_qa_extractor_function.add_to_role_policy(
+            dynamodb_chunks_policy)
         self.chunked_qa_extractor_function.add_to_role_policy(bedrock_policy)
 
         # Step Functions tasks

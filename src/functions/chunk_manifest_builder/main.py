@@ -25,15 +25,18 @@ def handler(event, context):
         response = table.get_item(Key={'id': interview_id})
 
         if 'Item' not in response:
-            raise Exception(f"Interview transcription not found: {interview_id}")
+            raise Exception(
+                f"Interview transcription not found: {interview_id}")
 
         interview_data = response['Item']
-        position_name = interview_data['position_name']  # Get from DynamoDB record
+        # Get from DynamoDB record
+        position_name = interview_data['position_name']
         position_description = interview_data['position_description']
 
         print(f"Retrieved from DynamoDB - position_name: {position_name}")
 
-        # Get full utterances from S3 (stored there due to DynamoDB size limits)
+        # Get full utterances from S3 (stored there due to DynamoDB size
+        # limits)
         s3 = boto3.client('s3')
         utterances_key = f"utterances/{interview_id}_utterances.json"
 
@@ -54,10 +57,13 @@ def handler(event, context):
             print(f"Using default bucket name: {bucket_name}")
 
         try:
-            utterances_response = s3.get_object(Bucket=bucket_name, Key=utterances_key)
-            utterances = json.loads(utterances_response['Body'].read().decode('utf-8'))
+            utterances_response = s3.get_object(
+                Bucket=bucket_name, Key=utterances_key)
+            utterances = json.loads(
+                utterances_response['Body'].read().decode('utf-8'))
         except s3.exceptions.NoSuchKey:
-            raise Exception(f"Utterances file not found: s3://{bucket_name}/{utterances_key}")
+            raise Exception(
+                f"Utterances file not found: s3://{bucket_name}/{utterances_key}")
         except Exception as e:
             raise Exception(f"Error reading utterances from S3: {str(e)}")
 
@@ -74,25 +80,23 @@ def handler(event, context):
 
         # Update processing status
         table.update_item(
-            Key={'id': interview_id},
+            Key={
+                'id': interview_id},
             UpdateExpression='SET processing_status = :status, chunk_count = :count',
             ExpressionAttributeValues={
                 ':status': 'chunked',
-                ':count': len(chunks)
-            }
-        )
+                ':count': len(chunks)})
 
-        return {
-            'statusCode': 200,
-            'interview_id': interview_id,
-            'position_name': position_name,
-            'position_description': position_description,
-            'bucket_name': bucket_name,
-            'chunk_count': len(chunks),
-            'total_duration_ms': chunks[-1]['end_ms'] if chunks else 0,
-            'chunks': [{'chunk_index': c['chunk_index'], 'start_ms': c['start_ms'], 'end_ms': c['end_ms']} for c in
-                       chunks]
-        }
+        return {'statusCode': 200,
+                'interview_id': interview_id,
+                'position_name': position_name,
+                'position_description': position_description,
+                'bucket_name': bucket_name,
+                'chunk_count': len(chunks),
+                'total_duration_ms': chunks[-1]['end_ms'] if chunks else 0,
+                'chunks': [{'chunk_index': c['chunk_index'],
+                            'start_ms': c['start_ms'],
+                            'end_ms': c['end_ms']} for c in chunks]}
 
     except Exception as e:
         print(f"Error building chunk manifest: {str(e)}")
@@ -135,7 +139,8 @@ def build_chunks(utterances, position_name, interview_id):
             # Check if we should end this chunk
             if chunk_duration >= TARGET_CHUNK_DURATION_MS:
                 # Try to find a natural break point (end of candidate answer)
-                break_point = find_natural_break_point(utterances, current_idx, chunk_start_time, MAX_CHUNK_DURATION_MS)
+                break_point = find_natural_break_point(
+                    utterances, current_idx, chunk_start_time, MAX_CHUNK_DURATION_MS)
                 if break_point != -1:
                     # Adjust chunk to natural break
                     chunk_utterances = utterances[current_start_idx:break_point + 1]
@@ -148,13 +153,16 @@ def build_chunks(utterances, position_name, interview_id):
 
         # Ensure minimum chunk size unless it's the last chunk
         if len(chunk_utterances) > 0:
-            chunk_duration = chunk_utterances[-1]['end_time_ms'] - chunk_start_time
-            if chunk_duration < MIN_CHUNK_DURATION_MS and current_idx < len(utterances) - 1:
+            chunk_duration = chunk_utterances[-1]['end_time_ms'] - \
+                chunk_start_time
+            if chunk_duration < MIN_CHUNK_DURATION_MS and current_idx < len(
+                    utterances) - 1:
                 # Extend chunk to minimum duration
                 while current_idx < len(utterances):
                     utterance = utterances[current_idx]
                     chunk_utterances.append(utterance)
-                    chunk_duration = utterance['end_time_ms'] - chunk_start_time
+                    chunk_duration = utterance['end_time_ms'] - \
+                        chunk_start_time
                     if chunk_duration >= MIN_CHUNK_DURATION_MS:
                         break
                     current_idx += 1
@@ -202,13 +210,19 @@ def build_chunks(utterances, position_name, interview_id):
     return chunks
 
 
-def find_natural_break_point(utterances, current_idx, chunk_start_time, max_duration_ms):
+def find_natural_break_point(
+        utterances,
+        current_idx,
+        chunk_start_time,
+        max_duration_ms):
     """
     Find a natural break point (end of candidate answer) within the maximum duration.
     """
 
     # Look ahead for natural break (candidate finishing an answer)
-    for i in range(current_idx, min(len(utterances), current_idx + 20)):  # Look at next 20 utterances
+    for i in range(
+            current_idx, min(
+            len(utterances), current_idx + 20)):  # Look at next 20 utterances
         utterance = utterances[i]
 
         # Check if we're past max duration
@@ -232,7 +246,8 @@ def build_chunk_text(chunk_utterances):
     lines = []
     for utterance in chunk_utterances:
         timestamp = format_timestamp(utterance['start_time_ms'])
-        lines.append(f"[{timestamp}] {utterance['speaker']}: {utterance['text']}")
+        lines.append(
+            f"[{timestamp}] {utterance['speaker']}: {utterance['text']}")
 
     return '\n'.join(lines)
 

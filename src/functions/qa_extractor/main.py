@@ -70,16 +70,16 @@ def extract_qa_pairs(bedrock_client, transcript):
     """
 
     prompt = f"""
-    Please analyze the following Russian interview transcript and extract all question-answer pairs. 
-    
+    Please analyze the following Russian interview transcript and extract all question-answer pairs.
+
     The transcript contains dialogue between an Interviewer and a Candidate, marked with "Interviewer:" and "Candidate:" prefixes.
     The conversation is in Russian language.
-    
+
     Extract each question asked by the interviewer and the corresponding answer given by the candidate.
-    
+
     Return the result as a JSON array where each object has "question" and "answer" fields.
     Keep the original Russian text in both question and answer fields.
-    
+
     Rules:
     1. Only extract complete question-answer pairs
     2. Questions should be from the Interviewer
@@ -88,10 +88,10 @@ def extract_qa_pairs(bedrock_client, transcript):
     5. Skip small talk, introductions, and closing remarks
     6. Focus on technical questions and substantial answers
     7. Preserve the original Russian text - do not translate
-    
+
     Transcript:
     {transcript}
-    
+
     Return only the JSON array, no additional text or explanation.
     """
 
@@ -110,7 +110,8 @@ def extract_qa_pairs(bedrock_client, transcript):
         # Get the inference profile ARN from environment variables
         inference_profile_arn = os.environ.get('BEDROCK_INFERENCE_PROFILE_ARN')
         if not inference_profile_arn:
-            raise Exception("BEDROCK_INFERENCE_PROFILE_ARN environment variable not set")
+            raise Exception(
+                "BEDROCK_INFERENCE_PROFILE_ARN environment variable not set")
 
         response = bedrock_client.invoke_model(
             modelId=inference_profile_arn,
