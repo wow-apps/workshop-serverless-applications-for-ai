@@ -2,6 +2,7 @@ from aws_cdk import (
     aws_stepfunctions as sfn,
     aws_stepfunctions_tasks as tasks,
     aws_lambda as _lambda,
+    aws_lambda_event_sources as event_sources,
     aws_iam as iam,
     Stack,
     Duration,
@@ -16,6 +17,7 @@ class StepFunctionsStack(Stack):
             construct_id: str,
             kms_key,
             bedrock_inference_profile_arn: str,
+            dynamodb_stack,
             **kwargs
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -71,11 +73,26 @@ class StepFunctionsStack(Stack):
             }
         )
 
+        # Lambda function for scoring answers against vacancy requirements
+        self.answer_scorer_function = _lambda.Function(
+            self,
+            "AnswerScorerFunction",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            code=_lambda.Code.from_asset("src/functions/answer_scorer"),
+            handler="main.handler",
+            timeout=Duration.minutes(5),
+            environment={
+                "KMS_KEY_ID": kms_key.key_id,
+                "BEDROCK_INFERENCE_PROFILE_ARN": bedrock_inference_profile_arn,
+            }
+        )
+
 
         # Grant permissions to Lambda functions
         kms_key.grant_encrypt_decrypt(self.transcribe_processor_function)
         kms_key.grant_encrypt_decrypt(self.transcribe_status_checker_function)
         kms_key.grant_encrypt_decrypt(self.qa_extractor_function)
+        kms_key.grant_encrypt_decrypt(self.answer_scorer_function)
 
         # Grant S3 permissions
         self.transcribe_processor_function.add_to_role_policy(
@@ -170,6 +187,21 @@ class StepFunctionsStack(Stack):
             dynamodb_transcriptions_policy)
         self.qa_extractor_function.add_to_role_policy(dynamodb_qa_policy)
         self.qa_extractor_function.add_to_role_policy(bedrock_policy)
+
+        # Grant permissions to answer scorer function
+        self.answer_scorer_function.add_to_role_policy(dynamodb_qa_policy)
+        self.answer_scorer_function.add_to_role_policy(bedrock_policy)
+
+        # Add DynamoDB stream event source to trigger answer scoring
+        self.answer_scorer_function.add_event_source(
+            event_sources.DynamoEventSource(
+                dynamodb_stack.interview_qa_table,
+                starting_position=_lambda.StartingPosition.LATEST,
+                batch_size=10,
+                max_batching_window=Duration.seconds(5),
+                retry_attempts=3,
+            )
+        )
 
 
         # Step Functions tasks

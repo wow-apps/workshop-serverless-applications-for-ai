@@ -48,7 +48,7 @@ class DynamoDbStack(Stack):
 
         # Interview Q&A Table
         # PK: id (uuid)
-        # Attributes: id, interview_id, index, question, answer, created_at
+        # Attributes: id, interview_id, index, question, answer, answer_score, answer_summary, created_at
         self.interview_qa_table = dynamodb.Table(
             self,
             "InterviewQATable",
@@ -64,6 +64,8 @@ class DynamoDbStack(Stack):
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
             ),
+            # Enable DynamoDB streams for triggering answer scoring
+            stream=dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
         )
 
         # Add GSI for querying by interview_id

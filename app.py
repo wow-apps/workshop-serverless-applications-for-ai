@@ -51,6 +51,7 @@ step_functions_stack = StepFunctionsStack(
     f"{APP_STACK_PREFIX}StepFunctionsStack",
     kms_key=kms_stack.kms_key,
     bedrock_inference_profile_arn=bedrock_inference_profile_arn,
+    dynamodb_stack=dynamodb_stack,
     env=environment,
 )
 
