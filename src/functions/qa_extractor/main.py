@@ -49,7 +49,6 @@ def handler(event, context):
                 'question': qa_pair['question'],
                 'answer': qa_pair['answer'],
                 'question_type': qa_pair.get('question_type', 'other'),
-                'answer_quality': qa_pair.get('answer_quality', 'unclear'),
                 'processing_status': 'extracted',
                 'created_at': datetime.utcnow().isoformat()
             }
@@ -75,45 +74,47 @@ def extract_qa_pairs(bedrock_client, transcript, position_description):
     Single-pass processing with full context understanding.
     """
 
-    system_prompt = """You are an expert at analyzing job interviews and extracting structured Q&A pairs. 
-You must return ONLY valid JSON with no additional text or explanation."""
+    system_prompt = """You are an expert at analyzing job interviews and extracting clean, complete question-answer pairs.
+You must be extremely careful to extract COMPLETE questions and their corresponding answers.
+Return ONLY valid JSON with no additional text."""
 
-    user_prompt = f"""Analyze this English interview transcript and extract all question-answer pairs.
+    user_prompt = f"""Extract complete question-answer pairs from this interview transcript.
 
-Position Context:
-{position_description}
+Position: {position_description}
 
-Transcript contains dialogue between an Interviewer and a Candidate.
+The transcript shows dialogue between "Interviewer:" and "Candidate:".
 
-Return ONLY valid JSON in this exact format:
+IMPORTANT EXTRACTION RULES:
+1. ONLY extract pairs where you can identify a COMPLETE question from the interviewer
+2. Match each complete question with the candidate's FULL response that directly answers it
+3. If an interviewer's statement is incomplete, interrupted, or not a clear question - SKIP IT
+4. If a candidate's response spans multiple turns (interrupted by "mm-hmm", "okay", etc.) - combine the full response
+5. Skip small talk, greetings, "any questions for me?", and closing remarks
+6. Focus on substantial questions about skills, experience, projects, technical topics
+7. Each question must be grammatically complete and make sense on its own
+8. Each answer must directly address the question asked
+
+Return ONLY this JSON format:
 {{
   "qa_pairs": [
     {{
       "index": 0,
-      "question": "Complete question text from interviewer",
-      "answer": "Complete answer text from candidate",
-      "question_type": "technical|behavioral|experience|other",
-      "answer_quality": "detailed|brief|unclear"
+      "question": "[COMPLETE interviewer question - must be a full, clear question]",
+      "answer": "[COMPLETE candidate response - combine all parts of their answer]",
+      "question_type": "technical|behavioral|experience|situational|other"
     }}
   ]
 }}
 
-Rules:
-1. Extract complete question-answer pairs only
-2. Questions from Interviewer, answers from Candidate  
-3. Combine multi-turn responses by same speaker
-4. Skip small talk, focus on substantial Q&A
-5. Classify question types and answer quality
-6. Preserve original English text
-7. Return empty array if no valid pairs found
+If you cannot find complete, clear question-answer pairs, return empty array.
 
 Transcript:
 {transcript}"""
 
     request_body = {
         "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 8000,  # Increased for longer responses
-        "temperature": 0.1,  # Low temperature for consistent structured output
+        "max_tokens": 12000,  # Increased for longer responses
+        "temperature": 0.0,  # Zero temperature for maximum consistency
         "system": system_prompt,
         "messages": [
             {
@@ -169,16 +170,32 @@ Transcript:
         validated_pairs = []
         for pair in qa_pairs:
             if (isinstance(pair, dict) and
-                    'question' in pair and 'answer' in pair):
+                    'question' in pair and 'answer' in pair and
+                    len(pair['question'].strip()) > 10 and  # Minimum question length
+                    len(pair['answer'].strip()) > 20):      # Minimum answer length
+                
+                # Clean and validate the question
+                question = pair['question'].strip()
+                answer = pair['answer'].strip()
+                
+                # Skip if question doesn't end with proper punctuation or seem complete
+                if not (question.endswith('?') or question.endswith('.') or 
+                       'what' in question.lower() or 'how' in question.lower() or 
+                       'why' in question.lower() or 'when' in question.lower() or
+                       'where' in question.lower() or 'can you' in question.lower() or
+                       'tell me' in question.lower() or 'describe' in question.lower()):
+                    print(f"Skipping incomplete question: {question[:50]}...")
+                    continue
+                
                 validated_pairs.append({
-                    'question': pair['question'],
-                    'answer': pair['answer'],
-                    'question_type': pair.get('question_type', 'other'),
-                    'answer_quality': pair.get('answer_quality', 'unclear')
+                    'question': question,
+                    'answer': answer,
+                    'question_type': pair.get('question_type', 'other')
                 })
             else:
                 print(f"Skipping invalid Q&A pair: {pair}")
 
+        print(f"Extracted {len(validated_pairs)} valid Q&A pairs")
         return validated_pairs
 
     except json.JSONDecodeError as e:
