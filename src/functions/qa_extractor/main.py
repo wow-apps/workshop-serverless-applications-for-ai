@@ -7,7 +7,7 @@ from datetime import datetime
 
 def handler(event, context):
     """
-    Extract Q&A pairs from interview transcript using Bedrock Claude Sonnet 3.5.
+    Extract Q&A pairs from interview transcript using Bedrock Claude 4 Sonnet.
     Single-pass processing for complete interviews (up to 200k context).
 
     Input event should contain:
@@ -31,7 +31,7 @@ def handler(event, context):
         interview_data = response['Item']
         transcript = interview_data['interview_transcript']
 
-        # Step 2: Extract Q&A pairs using Bedrock Claude Sonnet 3.5
+        # Step 2: Extract Q&A pairs using Bedrock Claude 4 Sonnet
         qa_pairs = extract_qa_pairs(bedrock, transcript, interview_data.get('position_description', ''))
 
         # Step 3: Save Q&A pairs to DynamoDB
@@ -71,7 +71,7 @@ def handler(event, context):
 
 def extract_qa_pairs(bedrock_client, transcript, position_description):
     """
-    Use Bedrock Claude Sonnet 3.5 to extract Q&A pairs from transcript.
+    Use Bedrock Claude 4 Sonnet to extract Q&A pairs from transcript.
     Single-pass processing with full context understanding.
     """
 

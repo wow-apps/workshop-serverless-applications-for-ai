@@ -159,7 +159,7 @@ class StepFunctionsStack(Stack):
                 # Inference profile
                 bedrock_inference_profile_arn,
                 # Foundation model in any region (needed for cross-region inference)
-                "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0"
+                "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-20250514:0"
             ]
         )
 

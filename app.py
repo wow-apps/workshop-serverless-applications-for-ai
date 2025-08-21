@@ -42,8 +42,8 @@ dynamodb_stack = DynamoDbStack(
     env=environment,
 )
 
-# Use existing system-defined inference profile for Claude 3.5 Sonnet (200k context)
-bedrock_inference_profile_arn = f"arn:aws:bedrock:{config.env_region}:{config.env_account}:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+# Use existing system-defined inference profile for Claude 4 Sonnet (200k context)
+bedrock_inference_profile_arn = f"arn:aws:bedrock:{config.env_region}:{config.env_account}:inference-profile/us.anthropic.claude-sonnet-4-20250514:0"
 
 # Step Functions Stack for orchestration
 step_functions_stack = StepFunctionsStack(
