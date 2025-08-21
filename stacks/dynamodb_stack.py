@@ -76,36 +76,3 @@ class DynamoDbStack(Stack):
             projection_type=dynamodb.ProjectionType.ALL
         )
 
-        # Interview Chunks Table for chunked processing
-        # PK: id (interview_id#chunk_index)
-        # Attributes: interview_id, chunk_index, text, speakers, timestamps, etc.
-        self.interview_chunks_table = dynamodb.Table(
-            self,
-            "InterviewChunksTable",
-            table_name="interview_chunks",
-            partition_key=dynamodb.Attribute(
-                name="id",
-                type=dynamodb.AttributeType.STRING
-            ),
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.DESTROY,
-            encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
-            encryption_key=kms_key,
-            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
-                point_in_time_recovery_enabled=True
-            ),
-        )
-
-        # Add GSI for querying chunks by interview_id
-        self.interview_chunks_table.add_global_secondary_index(
-            index_name="GSI1",
-            partition_key=dynamodb.Attribute(
-                name="interview_id",
-                type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(
-                name="chunk_index",
-                type=dynamodb.AttributeType.NUMBER
-            ),
-            projection_type=dynamodb.ProjectionType.ALL
-        )

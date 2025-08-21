@@ -7,7 +7,8 @@ from datetime import datetime
 
 def handler(event, context):
     """
-    Extract Q&A pairs from interview transcript using Bedrock Claude Haiku 3.5.
+    Extract Q&A pairs from interview transcript using Bedrock Claude Sonnet 3.5.
+    Single-pass processing for complete interviews (up to 200k context).
 
     Input event should contain:
     - interview_id: UUID of the interview
@@ -30,8 +31,8 @@ def handler(event, context):
         interview_data = response['Item']
         transcript = interview_data['interview_transcript']
 
-        # Step 2: Extract Q&A pairs using Bedrock Claude Haiku 3.5
-        qa_pairs = extract_qa_pairs(bedrock, transcript)
+        # Step 2: Extract Q&A pairs using Bedrock Claude Sonnet 3.5
+        qa_pairs = extract_qa_pairs(bedrock, transcript, interview_data.get('position_description', ''))
 
         # Step 3: Save Q&A pairs to DynamoDB
         qa_table = dynamodb.Table('interview_qa')
@@ -43,9 +44,13 @@ def handler(event, context):
             item = {
                 'id': qa_id,
                 'interview_id': interview_id,
+                'position_name': interview_data['position_name'],
                 'index': index,
                 'question': qa_pair['question'],
                 'answer': qa_pair['answer'],
+                'question_type': qa_pair.get('question_type', 'other'),
+                'answer_quality': qa_pair.get('answer_quality', 'unclear'),
+                'processing_status': 'extracted',
                 'created_at': datetime.utcnow().isoformat()
             }
 
@@ -64,44 +69,56 @@ def handler(event, context):
         raise
 
 
-def extract_qa_pairs(bedrock_client, transcript):
+def extract_qa_pairs(bedrock_client, transcript, position_description):
     """
-    Use Bedrock Claude Haiku 3.5 to extract Q&A pairs from transcript.
+    Use Bedrock Claude Sonnet 3.5 to extract Q&A pairs from transcript.
+    Single-pass processing with full context understanding.
     """
 
-    prompt = f"""
-    Please analyze the following Russian interview transcript and extract all question-answer pairs. 
-    
-    The transcript contains dialogue between an Interviewer and a Candidate, marked with "Interviewer:" and "Candidate:" prefixes.
-    The conversation is in Russian language.
-    
-    Extract each question asked by the interviewer and the corresponding answer given by the candidate.
-    
-    Return the result as a JSON array where each object has "question" and "answer" fields.
-    Keep the original Russian text in both question and answer fields.
-    
-    Rules:
-    1. Only extract complete question-answer pairs
-    2. Questions should be from the Interviewer
-    3. Answers should be from the Candidate
-    4. Combine multiple consecutive statements from the same speaker into one question or answer
-    5. Skip small talk, introductions, and closing remarks
-    6. Focus on technical questions and substantial answers
-    7. Preserve the original Russian text - do not translate
-    
-    Transcript:
-    {transcript}
-    
-    Return only the JSON array, no additional text or explanation.
-    """
+    system_prompt = """You are an expert at analyzing job interviews and extracting structured Q&A pairs. 
+You must return ONLY valid JSON with no additional text or explanation."""
+
+    user_prompt = f"""Analyze this English interview transcript and extract all question-answer pairs.
+
+Position Context:
+{position_description}
+
+Transcript contains dialogue between an Interviewer and a Candidate.
+
+Return ONLY valid JSON in this exact format:
+{{
+  "qa_pairs": [
+    {{
+      "index": 0,
+      "question": "Complete question text from interviewer",
+      "answer": "Complete answer text from candidate",
+      "question_type": "technical|behavioral|experience|other",
+      "answer_quality": "detailed|brief|unclear"
+    }}
+  ]
+}}
+
+Rules:
+1. Extract complete question-answer pairs only
+2. Questions from Interviewer, answers from Candidate  
+3. Combine multi-turn responses by same speaker
+4. Skip small talk, focus on substantial Q&A
+5. Classify question types and answer quality
+6. Preserve original English text
+7. Return empty array if no valid pairs found
+
+Transcript:
+{transcript}"""
 
     request_body = {
         "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 4000,
+        "max_tokens": 8000,  # Increased for longer responses
+        "temperature": 0.1,  # Low temperature for consistent structured output
+        "system": system_prompt,
         "messages": [
             {
                 "role": "user",
-                "content": prompt
+                "content": user_prompt
             }
         ]
     }
@@ -123,18 +140,46 @@ def extract_qa_pairs(bedrock_client, transcript):
         content = response_body['content'][0]['text']
 
         # Parse the JSON response
-        qa_pairs = json.loads(content.strip())
+        try:
+            qa_data = json.loads(content.strip())
+            qa_pairs = qa_data.get('qa_pairs', [])
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse JSON response: {content}")
+            print(f"JSON Error: {str(e)}")
+            
+            # Try to extract JSON from text if wrapped in other content
+            content_clean = content.strip()
+            if content_clean.startswith('```json'):
+                content_clean = content_clean[7:-3].strip()
+            elif content_clean.startswith('```'):
+                content_clean = content_clean[3:-3].strip()
+            
+            try:
+                qa_data = json.loads(content_clean)
+                qa_pairs = qa_data.get('qa_pairs', [])
+            except json.JSONDecodeError:
+                print(f"Still failed to parse after cleanup: {content_clean}")
+                return []
 
         # Validate the response format
         if not isinstance(qa_pairs, list):
-            raise Exception("Bedrock response is not a JSON array")
+            print(f"Bedrock response qa_pairs is not a list: {type(qa_pairs)}")
+            return []
 
+        validated_pairs = []
         for pair in qa_pairs:
-            if (not isinstance(pair, dict) or
-                    'question' not in pair or 'answer' not in pair):
-                raise Exception("Invalid Q&A pair format in Bedrock response")
+            if (isinstance(pair, dict) and
+                    'question' in pair and 'answer' in pair):
+                validated_pairs.append({
+                    'question': pair['question'],
+                    'answer': pair['answer'],
+                    'question_type': pair.get('question_type', 'other'),
+                    'answer_quality': pair.get('answer_quality', 'unclear')
+                })
+            else:
+                print(f"Skipping invalid Q&A pair: {pair}")
 
-        return qa_pairs
+        return validated_pairs
 
     except json.JSONDecodeError as e:
         print(f"Failed to parse Bedrock response as JSON: {str(e)}")

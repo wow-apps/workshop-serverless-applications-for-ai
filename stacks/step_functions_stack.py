@@ -57,53 +57,25 @@ class StepFunctionsStack(Stack):
             }
         )
 
-        # Lambda function for Q&A extraction using Bedrock (legacy - for small transcripts)
+        # Lambda function for Q&A extraction using Bedrock Claude Sonnet (single-pass)
         self.qa_extractor_function = _lambda.Function(
             self,
             "QAExtractorFunction",
             runtime=_lambda.Runtime.PYTHON_3_12,
             code=_lambda.Code.from_asset("src/functions/qa_extractor"),
             handler="main.handler",
-            timeout=Duration.minutes(10),
+            timeout=Duration.minutes(15),  # Increased timeout for large transcripts
             environment={
                 "KMS_KEY_ID": kms_key.key_id,
                 "BEDROCK_INFERENCE_PROFILE_ARN": bedrock_inference_profile_arn,
             }
         )
 
-        # Lambda function for building chunk manifest (for large transcripts)
-        self.chunk_manifest_builder_function = _lambda.Function(
-            self,
-            "ChunkManifestBuilderFunction",
-            runtime=_lambda.Runtime.PYTHON_3_12,
-            code=_lambda.Code.from_asset("src/functions/chunk_manifest_builder"),
-            handler="main.handler",
-            timeout=Duration.minutes(5),
-            environment={
-                "KMS_KEY_ID": kms_key.key_id,
-            }
-        )
-
-        # Lambda function for chunked Q&A extraction using Haiku
-        self.chunked_qa_extractor_function = _lambda.Function(
-            self,
-            "ChunkedQAExtractorFunction",
-            runtime=_lambda.Runtime.PYTHON_3_12,
-            code=_lambda.Code.from_asset("src/functions/chunked_qa_extractor"),
-            handler="main.handler",
-            timeout=Duration.minutes(3),
-            environment={
-                "KMS_KEY_ID": kms_key.key_id,
-                "BEDROCK_INFERENCE_PROFILE_ARN": bedrock_inference_profile_arn,
-            }
-        )
 
         # Grant permissions to Lambda functions
         kms_key.grant_encrypt_decrypt(self.transcribe_processor_function)
         kms_key.grant_encrypt_decrypt(self.transcribe_status_checker_function)
         kms_key.grant_encrypt_decrypt(self.qa_extractor_function)
-        kms_key.grant_encrypt_decrypt(self.chunk_manifest_builder_function)
-        kms_key.grant_encrypt_decrypt(self.chunked_qa_extractor_function)
 
         # Grant S3 permissions
         self.transcribe_processor_function.add_to_role_policy(
@@ -187,29 +159,10 @@ class StepFunctionsStack(Stack):
                 # Inference profile
                 bedrock_inference_profile_arn,
                 # Foundation model in any region (needed for cross-region inference)
-                "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0"
+                "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0"
             ]
         )
 
-        # DynamoDB permissions for chunked processing
-        dynamodb_chunks_policy = iam.PolicyStatement(
-            effect=iam.Effect.ALLOW,
-            actions=[
-                "dynamodb:PutItem",
-                "dynamodb:GetItem",
-                "dynamodb:UpdateItem",
-                "dynamodb:Query",
-                "dynamodb:Scan"
-            ],
-            resources=[
-                "arn:aws:dynamodb:*:*:table/interview_transcriptions",
-                "arn:aws:dynamodb:*:*:table/interview_transcriptions/index/*",
-                "arn:aws:dynamodb:*:*:table/interview_chunks",
-                "arn:aws:dynamodb:*:*:table/interview_chunks/index/*",
-                "arn:aws:dynamodb:*:*:table/interview_qa",
-                "arn:aws:dynamodb:*:*:table/interview_qa/index/*"
-            ]
-        )
 
         self.transcribe_processor_function.add_to_role_policy(
             dynamodb_transcriptions_policy)
@@ -218,20 +171,6 @@ class StepFunctionsStack(Stack):
         self.qa_extractor_function.add_to_role_policy(dynamodb_qa_policy)
         self.qa_extractor_function.add_to_role_policy(bedrock_policy)
 
-        # Grant S3 permissions to chunk manifest builder (needs to read utterances from S3)
-        s3_read_policy = iam.PolicyStatement(
-            effect=iam.Effect.ALLOW,
-            actions=[
-                "s3:GetObject"
-            ],
-            resources=["arn:aws:s3:::*/*"]
-        )
-
-        # Grant permissions to new chunked processing functions
-        self.chunk_manifest_builder_function.add_to_role_policy(dynamodb_chunks_policy)
-        self.chunk_manifest_builder_function.add_to_role_policy(s3_read_policy)
-        self.chunked_qa_extractor_function.add_to_role_policy(dynamodb_chunks_policy)
-        self.chunked_qa_extractor_function.add_to_role_policy(bedrock_policy)
 
         # Step Functions tasks
         start_transcription_task = tasks.LambdaInvoke(
@@ -255,47 +194,13 @@ class StepFunctionsStack(Stack):
             result_path="$.status_result"
         )
 
-        # Q&A extraction task (legacy - for small transcripts)
+        # Q&A extraction task (single-pass with Claude Sonnet)
         qa_extraction_task = tasks.LambdaInvoke(
             self,
             "ExtractQAPairs",
             lambda_function=self.qa_extractor_function,
             input_path="$.status_result.Payload",
             result_path="$.qa_result"
-        )
-
-        # Chunked processing tasks for large transcripts
-
-        # Build chunk manifest
-        build_chunk_manifest_task = tasks.LambdaInvoke(
-            self,
-            "BuildChunkManifest",
-            lambda_function=self.chunk_manifest_builder_function,
-            input_path="$.status_result.Payload",
-            result_path="$.chunk_manifest_result"
-        )
-
-        # Map state for parallel chunk processing
-        chunked_qa_extraction_map = sfn.Map(
-            self,
-            "ChunkedQAExtractionMap",
-            max_concurrency=10,  # Process up to 10 chunks in parallel
-            items_path="$.chunk_manifest_result.Payload.chunks",
-            parameters={
-                "id.$": "$$.Map.Item.Value.chunk_index",
-                "position.$": "$.chunk_manifest_result.Payload.position_name",
-                "interview_id.$": "$.chunk_manifest_result.Payload.interview_id"
-            }
-        )
-
-        # Add the chunked Q&A extraction as the iterator
-        chunked_qa_extraction_map.iterator(
-            tasks.LambdaInvoke(
-                self,
-                "ExtractQAFromChunk",
-                lambda_function=self.chunked_qa_extractor_function,
-                result_path="$.qa_extraction_result"
-            )
         )
 
         # Choice state to check if transcription is complete
@@ -315,7 +220,7 @@ class StepFunctionsStack(Stack):
             cause="Transcription job failed or timed out"
         )
 
-        # Define the workflow with chunked processing
+        # Define the simplified workflow with single-pass Q&A extraction
         definition = start_transcription_task.next(
             wait_for_transcription.next(
                 check_transcription_status_task.next(
@@ -323,10 +228,8 @@ class StepFunctionsStack(Stack):
                     .when(
                         sfn.Condition.string_equals(
                             "$.status_result.Payload.transcribe_status", "COMPLETED"),
-                        # Use chunked processing for large transcripts
-                        build_chunk_manifest_task.next(
-                            chunked_qa_extraction_map.next(success_state)
-                        )
+                        # Direct Q&A extraction with Claude Sonnet (single-pass)
+                        qa_extraction_task.next(success_state)
                     )
                     .when(
                         sfn.Condition.string_equals(
