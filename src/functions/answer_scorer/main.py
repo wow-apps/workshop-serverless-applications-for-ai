@@ -1,7 +1,10 @@
 import json
 import boto3
 import os
+import time
+import random
 from decimal import Decimal
+from botocore.exceptions import ClientError
 
 
 def handler(event, context):
@@ -83,6 +86,7 @@ def get_position_description(dynamodb, interview_id):
 def score_answer(bedrock_client, question, answer, position_description):
     """
     Use Claude 4 Sonnet to score an interview answer against vacancy requirements.
+    Includes retry logic for throttling.
     """
     
     # Get the inference profile ARN from environment variables
@@ -135,16 +139,43 @@ Scoring guide:
         ]
     }
 
-    try:
-        response = bedrock_client.invoke_model(
-            modelId=inference_profile_arn,
-            body=json.dumps(request_body),
-            contentType='application/json',
-            accept='application/json'
-        )
+    # Retry logic with exponential backoff for throttling
+    max_retries = 3
+    base_delay = 1.0  # Start with 1 second
+    
+    for attempt in range(max_retries + 1):
+        try:
+            # Add jitter to prevent thundering herd
+            if attempt > 0:
+                jitter = random.uniform(0.5, 1.5)
+                delay = (base_delay * (2 ** (attempt - 1))) * jitter
+                print(f"Attempt {attempt + 1}, waiting {delay:.2f} seconds before retry")
+                time.sleep(delay)
+            
+            response = bedrock_client.invoke_model(
+                modelId=inference_profile_arn,
+                body=json.dumps(request_body),
+                contentType='application/json',
+                accept='application/json'
+            )
 
-        response_body = json.loads(response['body'].read())
-        content_text = response_body['content'][0]['text']
+            response_body = json.loads(response['body'].read())
+            content_text = response_body['content'][0]['text']
+            break  # Success, exit retry loop
+            
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == 'ThrottlingException' and attempt < max_retries:
+                print(f"Throttling detected, attempt {attempt + 1}/{max_retries + 1}")
+                continue
+            else:
+                print(f"Bedrock error after {attempt + 1} attempts: {str(e)}")
+                raise
+        except Exception as e:
+            print(f"Unexpected error on attempt {attempt + 1}: {str(e)}")
+            if attempt < max_retries:
+                continue
+            raise
 
         # Parse the JSON response
         try:
@@ -193,10 +224,10 @@ Scoring guide:
                 }
 
     except Exception as e:
-        print(f"Error calling Bedrock for answer scoring: {str(e)}")
+        print(f"Error calling Bedrock for answer scoring after all retries: {str(e)}")
         return {
             'score': 5,
-            'summary': 'Unable to score answer due to system error'
+            'summary': 'Unable to score answer due to system error - please retry later'
         }
 
 

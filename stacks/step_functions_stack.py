@@ -155,6 +155,7 @@ class StepFunctionsStack(Stack):
             actions=[
                 "dynamodb:PutItem",
                 "dynamodb:GetItem",
+                "dynamodb:UpdateItem",
                 "dynamodb:Query"
             ],
             resources=[
@@ -193,13 +194,16 @@ class StepFunctionsStack(Stack):
         self.answer_scorer_function.add_to_role_policy(bedrock_policy)
 
         # Add DynamoDB stream event source to trigger answer scoring
+        # Reduced concurrency to avoid Bedrock throttling
         self.answer_scorer_function.add_event_source(
             event_sources.DynamoEventSource(
                 dynamodb_stack.interview_qa_table,
                 starting_position=_lambda.StartingPosition.LATEST,
-                batch_size=10,
-                max_batching_window=Duration.seconds(5),
-                retry_attempts=3,
+                batch_size=3,  # Reduced batch size to limit concurrent Bedrock calls
+                max_batching_window=Duration.seconds(10),  # Increased window for better batching
+                retry_attempts=2,  # Reduced retries since we handle retries in the function
+                parallelization_factor=1,  # Process records sequentially to avoid throttling
+                max_record_age=Duration.hours(1),  # Skip records older than 1 hour
             )
         )
 
