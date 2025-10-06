@@ -32,7 +32,9 @@ def handler(event, context):
         transcript = interview_data['interview_transcript']
 
         # Step 2: Extract Q&A pairs using Bedrock Claude 4 Sonnet
-        qa_pairs = extract_qa_pairs(bedrock, transcript, interview_data.get('position_description', ''))
+        qa_pairs = extract_qa_pairs(
+            bedrock, transcript, interview_data.get(
+                'position_description', ''))
 
         # Step 3: Save Q&A pairs to DynamoDB
         qa_table = dynamodb.Table('interview_qa')
@@ -128,7 +130,8 @@ Transcript:
         # Get the inference profile ARN from environment variables
         inference_profile_arn = os.environ.get('BEDROCK_INFERENCE_PROFILE_ARN')
         if not inference_profile_arn:
-            raise Exception("BEDROCK_INFERENCE_PROFILE_ARN environment variable not set")
+            raise Exception(
+                "BEDROCK_INFERENCE_PROFILE_ARN environment variable not set")
 
         response = bedrock_client.invoke_model(
             modelId=inference_profile_arn,
@@ -147,14 +150,14 @@ Transcript:
         except json.JSONDecodeError as e:
             print(f"Failed to parse JSON response: {content}")
             print(f"JSON Error: {str(e)}")
-            
+
             # Try to extract JSON from text if wrapped in other content
             content_clean = content.strip()
             if content_clean.startswith('```json'):
                 content_clean = content_clean[7:-3].strip()
             elif content_clean.startswith('```'):
                 content_clean = content_clean[3:-3].strip()
-            
+
             try:
                 qa_data = json.loads(content_clean)
                 qa_pairs = qa_data.get('qa_pairs', [])
@@ -171,22 +174,24 @@ Transcript:
         for pair in qa_pairs:
             if (isinstance(pair, dict) and
                     'question' in pair and 'answer' in pair and
-                    len(pair['question'].strip()) > 10 and  # Minimum question length
+                    # Minimum question length
+                    len(pair['question'].strip()) > 10 and
                     len(pair['answer'].strip()) > 20):      # Minimum answer length
-                
+
                 # Clean and validate the question
                 question = pair['question'].strip()
                 answer = pair['answer'].strip()
-                
-                # Skip if question doesn't end with proper punctuation or seem complete
-                if not (question.endswith('?') or question.endswith('.') or 
-                       'what' in question.lower() or 'how' in question.lower() or 
-                       'why' in question.lower() or 'when' in question.lower() or
-                       'where' in question.lower() or 'can you' in question.lower() or
-                       'tell me' in question.lower() or 'describe' in question.lower()):
+
+                # Skip if question doesn't end with proper punctuation or seem
+                # complete
+                if not (question.endswith('?') or question.endswith('.') or
+                        'what' in question.lower() or 'how' in question.lower() or
+                        'why' in question.lower() or 'when' in question.lower() or
+                        'where' in question.lower() or 'can you' in question.lower() or
+                        'tell me' in question.lower() or 'describe' in question.lower()):
                     print(f"Skipping incomplete question: {question[:50]}...")
                     continue
-                
+
                 validated_pairs.append({
                     'question': question,
                     'answer': answer,
