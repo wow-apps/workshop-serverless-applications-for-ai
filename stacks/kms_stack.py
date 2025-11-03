@@ -26,12 +26,11 @@ class KmsStack(Stack):
                     "kms:GenerateDataKey",
                 ],
                 resources=["*"],
-                principals=[iam.ServicePrincipal("lambda.amazonaws.com")],
+                principals=[
+                    iam.ServicePrincipal("lambda.amazonaws.com")],
                 conditions={
                     "StringEquals": {
                         "kms:CallerAccount": self.account,
                         "kms:ViaService": f"lambda.{self.region}.amazonaws.com",
-                    }
-                },
-            )
-        )
+                    }},
+            ))
