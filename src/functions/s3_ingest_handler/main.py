@@ -19,7 +19,8 @@ def handler(event, context):
             bucket = record['s3']['bucket']['name']
             key = unquote_plus(record['s3']['object']['key'])
 
-            # Extract position_name from path (e.g., "python_senior/1.m4a" -> "python_senior")
+            # Extract position_name from path (e.g., "python_senior/1.m4a" ->
+            # "python_senior")
             path_parts = key.split('/')
             if len(path_parts) < 2:
                 print(f"Invalid path structure: {key}")
