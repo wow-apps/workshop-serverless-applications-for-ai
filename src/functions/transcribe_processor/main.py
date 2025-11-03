@@ -39,7 +39,6 @@ def handler(event, context):
             print(f"Vacancy file not found: {vacancy_key}")
             position_description = f"Position: {position_name}"
 
-
         # Step 2: Start Transcribe job
         job_name = f"interview-{interview_id}"
         audio_uri = f"s3://{bucket}/{key}"
@@ -111,13 +110,16 @@ def check_transcription_status(event, context):
                 # or https://bucket.s3.region.amazonaws.com/key
                 if '.s3.' in transcript_uri:
                     # Format: https://bucket.s3.region.amazonaws.com/key
-                    uri_without_protocol = transcript_uri.replace('https://', '')
+                    uri_without_protocol = transcript_uri.replace(
+                        'https://', '')
                     parts = uri_without_protocol.split('/')
-                    result_bucket = parts[0].split('.')[0]  # Extract bucket from hostname
+                    # Extract bucket from hostname
+                    result_bucket = parts[0].split('.')[0]
                     result_key = '/'.join(parts[1:])  # Everything after bucket
                 else:
                     # Format: https://s3.region.amazonaws.com/bucket/key
-                    uri_without_protocol = transcript_uri.replace('https://', '')
+                    uri_without_protocol = transcript_uri.replace(
+                        'https://', '')
                     parts = uri_without_protocol.split('/')
                     result_bucket = parts[1]  # Second part is bucket
                     result_key = '/'.join(parts[2:])  # Everything after bucket
@@ -144,7 +146,8 @@ def check_transcription_status(event, context):
             utterances = build_utterances_with_timestamps(segments, items)
 
             # Save to DynamoDB without large raw data (due to 400KB item size limit)
-            # For large transcripts, we'll store utterances for chunking and skip raw data
+            # For large transcripts, we'll store utterances for chunking and
+            # skip raw data
             table = dynamodb.Table('interview_transcriptions')
 
             # Calculate sizes to determine what we can store
@@ -173,13 +176,15 @@ def check_transcription_status(event, context):
                 # For very large transcripts, store summary info only
                 item[
                     'interview_transcript'] = f"[Large transcript - {len(utterances)} utterances, {transcript_size} bytes]"
-                print(f"Transcript too large ({transcript_size} bytes), storing summary only")
+                print(
+                    f"Transcript too large ({transcript_size} bytes), storing summary only")
 
             # Store utterances separately due to size
             # We'll chunk and process them in the next step
             # For now, just store a sample for debugging
             if len(utterances) > 10:
-                item['utterances_sample'] = utterances[:5] + utterances[-5:]  # First and last 5
+                item['utterances_sample'] = utterances[:5] + \
+                    utterances[-5:]  # First and last 5
             else:
                 item['utterances_sample'] = utterances
 
@@ -330,8 +335,10 @@ def build_utterances_with_timestamps(segments, items):
                 # Calculate average confidence as Decimal
                 avg_confidence = Decimal('0')
                 if current_words:
-                    confidence_sum = sum(w['confidence'] for w in current_words)
-                    avg_confidence = confidence_sum / Decimal(str(len(current_words)))
+                    confidence_sum = sum(w['confidence']
+                                         for w in current_words)
+                    avg_confidence = confidence_sum / \
+                        Decimal(str(len(current_words)))
 
                 utterances.append({
                     'utterance_id': utterance_id,
