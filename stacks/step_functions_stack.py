@@ -59,14 +59,16 @@ class StepFunctionsStack(Stack):
             }
         )
 
-        # Lambda function for Q&A extraction using Bedrock Claude Sonnet (single-pass)
+        # Lambda function for Q&A extraction using Bedrock Claude Sonnet
+        # (single-pass)
         self.qa_extractor_function = _lambda.Function(
             self,
             "QAExtractorFunction",
             runtime=_lambda.Runtime.PYTHON_3_12,
             code=_lambda.Code.from_asset("src/functions/qa_extractor"),
             handler="main.handler",
-            timeout=Duration.minutes(15),  # Increased timeout for large transcripts
+            timeout=Duration.minutes(15),
+            # Increased timeout for large transcripts
             environment={
                 "KMS_KEY_ID": kms_key.key_id,
                 "BEDROCK_INFERENCE_PROFILE_ARN": bedrock_inference_profile_arn,
@@ -86,7 +88,6 @@ class StepFunctionsStack(Stack):
                 "BEDROCK_INFERENCE_PROFILE_ARN": bedrock_inference_profile_arn,
             }
         )
-
 
         # Grant permissions to Lambda functions
         kms_key.grant_encrypt_decrypt(self.transcribe_processor_function)
@@ -124,7 +125,8 @@ class StepFunctionsStack(Stack):
                 "transcribe:StartTranscriptionJob",
                 "transcribe:GetTranscriptionJob",
                 "transcribe:ListTranscriptionJobs",
-                # Custom vocabulary permissions for Russian language optimization
+                # Custom vocabulary permissions for Russian language
+                # optimization
                 "transcribe:CreateVocabulary",
                 "transcribe:GetVocabulary",
                 "transcribe:ListVocabularies",
@@ -167,7 +169,8 @@ class StepFunctionsStack(Stack):
         # Grant Bedrock permissions for Q&A extraction
         # Need permissions for:
         # 1. The inference profile (can be cross-region)
-        # 2. The underlying foundation model in any region (inference profiles route across regions)
+        # 2. The underlying foundation model in any region (inference profiles
+        # route across regions)
         bedrock_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
             actions=[
@@ -176,11 +179,11 @@ class StepFunctionsStack(Stack):
             resources=[
                 # Inference profile
                 bedrock_inference_profile_arn,
-                # Foundation model in any region (needed for cross-region inference)
+                # Foundation model in any region (needed for cross-region
+                # inference)
                 "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0"
             ]
         )
-
 
         self.transcribe_processor_function.add_to_role_policy(
             dynamodb_transcriptions_policy)
@@ -200,13 +203,14 @@ class StepFunctionsStack(Stack):
                 dynamodb_stack.interview_qa_table,
                 starting_position=_lambda.StartingPosition.LATEST,
                 batch_size=3,  # Reduced batch size to limit concurrent Bedrock calls
-                max_batching_window=Duration.seconds(10),  # Increased window for better batching
+                # Increased window for better batching
+                max_batching_window=Duration.seconds(10),
                 retry_attempts=2,  # Reduced retries since we handle retries in the function
                 parallelization_factor=1,  # Process records sequentially to avoid throttling
-                max_record_age=Duration.hours(1),  # Skip records older than 1 hour
+                # Skip records older than 1 hour
+                max_record_age=Duration.hours(1),
             )
         )
-
 
         # Step Functions tasks
         start_transcription_task = tasks.LambdaInvoke(
@@ -264,7 +268,8 @@ class StepFunctionsStack(Stack):
                     .when(
                         sfn.Condition.string_equals(
                             "$.status_result.Payload.transcribe_status", "COMPLETED"),
-                        # Direct Q&A extraction with Claude Sonnet (single-pass)
+                        # Direct Q&A extraction with Claude Sonnet
+                        # (single-pass)
                         qa_extraction_task.next(success_state)
                     )
                     .when(
